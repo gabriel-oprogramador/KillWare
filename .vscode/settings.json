@@ -1,0 +1,8 @@
+{
+    "editor.formatOnSave": true,
+    "explorer.autoReveal": false,
+    "explorer.compactFolders": false,
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+    "C_Cpp.default.intelliSenseMode": "clang-x64",
+    "C_Cpp.default.compilerPath": ""
+}
