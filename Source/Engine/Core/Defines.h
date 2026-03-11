@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 #define ENGINE_API
 #define GAME_API
@@ -28,7 +29,6 @@
 #define GT_M_PI          3.14159265358979323846
 #define GT_EPSILON_VALUE 1e-6f
 
-// #define GT_MAX_FILENAME 64
 #ifdef __cplusplus
 #define GT_EXTERN_C_BEGIN extern "C" {
 #define GT_EXTERN_C_END   }
@@ -39,6 +39,26 @@
 #define GT_EXTERN_C_END
 #define GT_EXTERN_C       extern
 #define GT_CLITERAL(type) (type)
+#endif
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+#define BIT_CTZ64(x) BitCtz64(x)
+#else
+#define BIT_CTZ64(x) __builtin_ctzll(x)
+#endif
+
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline uint32_t GT_BIT_CTZ64(uint64_t x) {
+  unsigned long index;
+  _BitScanForward64(&index, x);
+  return (uint32_t)index;
+}
+#else
+static inline uint32_t GT_BIT_CTZ64(uint64_t x) {
+  return (uint32_t)__builtin_ctzll(x);
+}
 #endif
 
 // Use only in .c or .cpp files.

@@ -1,27 +1,81 @@
 #pragma once
 #include "Core/EngineTypes.h"
 #include "Core/Defines.h"
+#include "Core/Bitset.h"
 #include "Core/Log.h"
 
-typedef struct {
-  cstring typeName;
-  uint64 typeSize;
-  uint64 typeHash;
-  uint64 typeAlign;
+// 256 é o valor maximo de bitset por contexto
+#define ARC_MAX_CAPACITY 256
+
+typedef uint64 AActor;  //Entity ID
+typedef uint32 FComponentID;
+typedef uint32 FArchetypeID;
+typedef uint32 FQueryID;
+
+typedef struct FTypeInfo {
+  cstring name;
+  uint64 size;
+  uint64 hash;
+  uint64 align;
 } FTypeInfo;
 
 typedef struct FProperty {
-  FTypeInfo info;
+  FTypeInfo typeInfo;
   cstring name;
   uint64 offset;
   struct FProperty* next;
 } FProperty;
 
-typedef struct {
-  FTypeInfo info;
+typedef struct UComponent {
+  FTypeInfo typeInfo;
   FProperty* propList;
-  uint32 runtimeID;
+  FComponentID runtimeID;
 } UComponent;
+
+typedef struct UQuery {
+  cstring name;
+  FQueryID runtimeID;
+  FBitset queryMask;
+  FBitset arcMask;
+  uint32 arcCount;
+} UQuery;
+
+typedef struct FChunkStorage {
+  struct FChunkStorage* next;
+  uint32 count;
+  uint8 data[GT_BUFFER_16K];
+} FChunkStorage;
+
+typedef struct UActor {
+  FChunkStorage* chunk;
+  AActor owner;
+  uint32 index;
+  uint32 version;
+} UActor;
+
+typedef struct UArchetype {
+  FChunkStorage* firstChunk;
+  FChunkStorage* lastChunk;
+  UActor* handles;
+  cstring name;
+  FBitset componentMask;
+  FArchetypeID runtimeID;
+  uint16 entityStride;
+  uint16 chunkCapacity;
+  uint16 componentOffset[ARC_MAX_CAPACITY];
+} UArchetype;
+
+GT_EXTERN_C_BEGIN
+
+ENGINE_API FArchetypeID RegisterArchetype(UArchetype* NewArchetype);
+ENGINE_API FComponentID RegisterComponent(UComponent* NewComponent);
+ENGINE_API FQueryID RegisterQuery(UQuery* NewQuery);
+
+ENGINE_API UActor ArcAddEntity();
+ENGINE_API UArchetype* ArcFindArchetypeByID(FArchetypeID ID);
+ENGINE_API UArchetype* ArcFindArchetypeByName(cstring Name);
+
+GT_EXTERN_C_END
 
 #define ARC_CACHELINE_SIZE   64
 #define ARC_SIMD_ALIGNMENT   16
@@ -37,10 +91,12 @@ typedef struct {
 #define UPROPERTY(TComponent, Type, Name)           \
   do {                                              \
     static FProperty Name = {};                     \
-    Name.info.typeName = #Type;                     \
-    Name.info.typeSize = sizeof(Type);              \
-    Name.info.typeHash = HashFNV1a64FromStr(#Type); \
-    Name.info.typeAlign = GT_ALIGNOF(Type);         \
+    Name.typeInfo.name = #Type;                     \
+    Name.typeInfo.size = sizeof(Type);              \
+    Name.typeInfo.hash = HashFNV1a64FromStr(#Type); \
+    Name.typeInfo.align = GT_ALIGNOF(Type);         \
+    Name.name = #Name;                              \
+    Name.offset = offsetof(TComponent, Name);       \
     UComponent* comp = TComponent##GetUComponent(); \
     FProperty** it = &comp->propList;               \
     while(*it)                                      \
@@ -51,38 +107,33 @@ typedef struct {
 #define REGISTER_COMPONENT(Type)                      \
   UComponent* Type##GetUComponent() {                 \
     static UComponent comp = {};                      \
-    if(comp.info.typeSize == 0) {                     \
-      comp.info.typeName = #Type;                     \
-      comp.info.typeSize = sizeof(Type);              \
-      comp.info.typeAlign = GT_ALIGNOF(Type);         \
-      comp.info.typeHash = HashFNV1a64FromStr(#Type); \
+    if(comp.typeInfo.size == 0) {                     \
+      comp.typeInfo.name = #Type;                     \
+      comp.typeInfo.size = sizeof(Type);              \
+      comp.typeInfo.align = GT_ALIGNOF(Type);         \
+      comp.typeInfo.hash = HashFNV1a64FromStr(#Type); \
+      comp.runtimeID = RegisterComponent(&comp);      \
     }                                                 \
     return &comp;                                     \
   }                                                   \
-  GT_AUTO_EXEC(AutoRef##Type)
+  GT_AUTO_EXEC(AutoReg##Type)
 
-#define DECLARE_ARCHETYPE(Name, ...)                                                                     \
-  GT_AUTO_EXEC(AutoRegArch##Name) {                                                                      \
-    static UComponent* components[MAP(ARC_GEN_COUNT, __VA_ARGS__)];                                      \
-    const uint32 numComponents = sizeof(components) / sizeof(components[0]);                             \
-    uint32 index = 0;                                                                                    \
-    MAP(ARC_GEN_COMPONENT, __VA_ARGS__);                                                                 \
-    for(uint32 c = 0; c < numComponents; c++) {                                                          \
-      GT_ALERT("Add => Name:%s, Size:%llu", components[c]->info.typeName, components[c]->info.typeSize); \
-    }                                                                                                    \
-  }
+#define ADD_COMPONENT(Type)                                \
+  do {                                                     \
+    UComponent* comp = GetUComponent(Type);                \
+    BitsetSet(&Archetype->componentMask, comp->runtimeID); \
+  } while(0);
 
-// Para Teste
-DECLARE_COMPONENT(UPlayer) {
-  FVector3 location;
-  FVector3 rotation;
-  FVector3 scale;
-};
-DECLARE_COMPONENT(USprite) {
-  uint32 materialID;
-  uint64 textureID;
-  float rotation;
-  uint32 zOrder;
-  FVector2 uv0;
-  FVector2 uv1;
-};
+#define DECLARE_ARCHETYPE(Name)                   \
+  void RegArchetype##Name(UArchetype* Archetype); \
+  GT_AUTO_EXEC(AutoRegArchetype##Name) {          \
+    static UArchetype arc = {};                   \
+    arc.name = #Name;                             \
+    arc.entityStride = 0;                         \
+    arc.firstChunk = NULL;                        \
+    arc.lastChunk = NULL;                         \
+    BitsetClear(&arc.componentMask);              \
+    arc.runtimeID = RegisterArchetype(&arc);      \
+    RegArchetype##Name(&arc);                     \
+  }                                               \
+  void RegArchetype##Name(UArchetype* Archetype)

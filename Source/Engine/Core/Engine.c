@@ -11,6 +11,8 @@ extern void GameStop();
 extern void RenderInitialize();
 extern void RenderTerminate();
 extern void RenderUpdate(float DeltaTime);
+extern void ArcInitialize();
+extern void ArcTerminate();
 
 static void InternalProcessPlatformEvents(float DeltaTime);
 
@@ -33,6 +35,7 @@ uint32 EngineInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRe
 #endif  //SHIPPING_MODE
 
   RenderInitialize();
+  ArcInitialize();
   GT_INFO("Engine Initialized");
   GameStart();
   return 1;
@@ -40,6 +43,7 @@ uint32 EngineInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRe
 
 void EngineTerminate() {
   GameStop();
+  ArcTerminate();
   RenderTerminate();
   GT_INFO("Engine Terminated");
 }

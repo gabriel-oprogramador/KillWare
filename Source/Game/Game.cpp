@@ -2,8 +2,11 @@
 #include "CoreMinimal.h"
 #include "GameModule.h"
 
+GT_EXTERN_C void Foo();
+
 void GameStart() {
   GT_INFO("Game Start");
+  Foo();
 }
 
 void TestInputKey(EKeyCode KeyCode, cstring Name) {
