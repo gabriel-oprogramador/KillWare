@@ -4,6 +4,8 @@
 #include "Core/Bitset.h"
 #include "Core/Log.h"
 
+//TODO: Mudar de cstring pra FName
+
 // 256 é o valor maximo de bitset por contexto
 #define ARC_MAX_CAPACITY 256
 
@@ -77,11 +79,13 @@ ENGINE_API UArchetype* ArcFindArchetypeByName(cstring Name);
 
 GT_EXTERN_C_END
 
-#define ARC_CACHELINE_SIZE   64
-#define ARC_SIMD_ALIGNMENT   16
-#define ARC_GEN_COUNT(X)     +1
-#define ARC_GEN_COMPONENT(X) components[index++] = GetUComponent(X);
-#define GetUComponent(Type)  Type##GetUComponent()
+#define ARC_CACHELINE_SIZE      64
+#define ARC_SIMD_ALIGNMENT      16
+#define ARC_GEN_COUNT(X)        +1
+#define ARC_GEN_COMPONENT(X)    components[index++] = GetUComponent(X);
+#define ARC_GEM_COMPONENT_ID(X) BitsetSet(&query->queryMask, GetUComponent(X)->runtimeID);
+#define VIEW_FIELD(Type)        Type* Type##Array;
+#define GetUComponent(Type)     Type##GetUComponent()
 
 #define DECLARE_COMPONENT(Name)                  \
   typedef struct Name Name;                      \
@@ -137,3 +141,27 @@ GT_EXTERN_C_END
     RegArchetype##Name(&arc);                     \
   }                                               \
   void RegArchetype##Name(UArchetype* Archetype)
+
+#define DECLARE_QUERY(Name, ...)             \
+  static UQuery Name;                        \
+  typedef struct {                           \
+    uint32 count;                            \
+    MAP(VIEW_FIELD, __VA_ARGS__)             \
+  } Name##View;                              \
+  GT_AUTO_EXEC(AutoRegQuery##Name) {         \
+    UQuery* query = &Name;                   \
+    query->name = #Name;                     \
+    query->runtimeID = RegisterQuery(&Name); \
+    BitsetClear(&query->queryMask);          \
+    BitsetClear(&query->arcMask);            \
+    MAP(ARC_GEM_COMPONENT_ID, __VA_ARGS__);  \
+  }
+
+#define FOR_EACH(Query, Var)                                                   \
+  FBitset Query##mask = Query.arcMask;                                         \
+  uint32 Query##arcID = 0;                                                     \
+  while(BitsetNextBitIndex(&Query##mask, &Query##arcID))                       \
+    for(UArchetype* arc = ArcFindArchetypeByID(Query##arcID); arc; arc = NULL) \
+      for(FChunkStorage* chunk = arc->firstChunk; chunk; chunk = chunk->next)  \
+        for(Query##View Var = {0}; Var.count == 0; Var.count++)                \
+          for(uint32 index = 0; index < chunk->count; index++)

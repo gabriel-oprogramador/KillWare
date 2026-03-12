@@ -1,5 +1,14 @@
 #include "Player.h"
 
+// TODO: Para testes, ainda sem Storage real
+#include "Platform/Platform.h"
+void TestChunkAlloc(cstring ArchetypeName, uint32 Count) {
+  UArchetype* arc = ArcFindArchetypeByName(ArchetypeName);
+  arc->firstChunk = (FChunkStorage*)PMemAlloc(sizeof(FChunkStorage));
+  arc->lastChunk = arc->firstChunk;
+  arc->lastChunk->count = Count;
+}
+
 // TODO: Mover para Engine
 REGISTER_COMPONENT(UTransform) {
   UPROPERTY(UTransform, FVector3, location);
@@ -33,7 +42,7 @@ DECLARE_ARCHETYPE(APlayer) {
   ADD_COMPONENT(UTransform);
   ADD_COMPONENT(UPlayerState);
   ADD_COMPONENT(USpriteRenderer);
-  //ADD_COMPONENT(URigidBody);
+  ADD_COMPONENT(URigidBody);
 }
 DECLARE_ARCHETYPE(AEnemy) {
   ADD_COMPONENT(UTransform);
@@ -41,45 +50,19 @@ DECLARE_ARCHETYPE(AEnemy) {
   ADD_COMPONENT(USpriteRenderer);
 }
 
-#define VIEW_FIELD(Type)        Type* Type##Array;
-#define ARC_GEM_COMPONENT_ID(X) BitsetSet(&query->queryMask, GetUComponent(X)->runtimeID);
-#define DECLARE_QUERY(Name, ...)             \
-  static UQuery Name;                        \
-  typedef struct {                           \
-    uint32 count;                            \
-    MAP(VIEW_FIELD, __VA_ARGS__)             \
-  } Name##View;                              \
-  GT_AUTO_EXEC(AutoRegQuery##Name) {         \
-    UQuery* query = &Name;                   \
-    query->name = #Name;                     \
-    query->runtimeID = RegisterQuery(&Name); \
-    BitsetClear(&query->queryMask);          \
-    BitsetClear(&query->arcMask);            \
-    MAP(ARC_GEM_COMPONENT_ID, __VA_ARGS__);  \
-  }
-
-#define FOR_EACH(Query, Var)                                                   \
-  FBitset Query##mask = Query.arcMask;                                         \
-  uint32 Query##arcID = 0;                                                     \
-  while(BitsetNextBitIndex(&Query##mask, &Query##arcID))                       \
-    for(UArchetype* arc = ArcFindArchetypeByID(Query##arcID); arc; arc = NULL) \
-      for(FChunkStorage* chunk = arc->firstChunk; chunk; chunk = chunk->next)  \
-        for(Query##View Var = {0}; Var.count == 0; Var.count++)                \
-          for(uint32 index = 0; index < chunk->count; index++)
-
 DECLARE_QUERY(PlayerMovement, UTransform, URigidBody);
 DECLARE_QUERY(PlayerLevelUp, UPlayerState);
 DECLARE_QUERY(EnemyAI, UTransform, UEnemyState);
 DECLARE_QUERY(SubmitSprite, UTransform, USpriteRenderer);
 
-#include "Platform/Platform.h"
 GT_EXTERN_C void Foo() {
-  UArchetype* playerArc = ArcFindArchetypeByName("APlayer");
-  //UArchetype* enemyArc = ArcFindArchetypeByName("AEnemy");
-  playerArc->firstChunk = (FChunkStorage*)PMemAlloc(sizeof(FChunkStorage));
-  playerArc->lastChunk = playerArc->firstChunk;
-  playerArc->lastChunk->count = 3;
+  TestChunkAlloc("APlayer", 1);
+  TestChunkAlloc("AEnemy", 2);
 
+  GT_ALERT("Foreach:PlayerMovement");
+  FOR_EACH(PlayerMovement, View) {
+    GT_ALERT("Loop:%s", arc->name);
+  }
   GT_ALERT("Foreach:PlayerLevelUp");
   FOR_EACH(PlayerLevelUp, View) {
     GT_ALERT("Loop:%s", arc->name);

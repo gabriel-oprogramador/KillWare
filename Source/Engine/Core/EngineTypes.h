@@ -40,6 +40,8 @@ typedef struct FMatrix4 {
 } FMatrix4;
 
 // Others Type //============================================================================================//
+typedef uint64 FName;
+
 typedef struct FColor {
   uint8 r, g, b, a;
 } FColor;
@@ -68,13 +70,30 @@ typedef struct FGT {
   } input;
 } FGT;
 
+static inline uint32 HashFNV1a32FromStr(cstring Str) {
+  if(!Str) {
+    return 0;
+  }
+  uint32 hash = 2166136261u;
+  while(*Str) {
+    hash ^= (uint8)(*Str++);
+    hash *= 16777619u;
+  }
+  hash ^= hash >> 16;
+  hash *= 0x7feb352d;
+  hash ^= hash >> 15;
+  hash *= 0x846ca68b;
+  hash ^= hash >> 16;
+  return hash;
+}
+
 static inline uint64 HashFNV1a64FromStr(const char* Str) {
   uint64 hash = 1469598103934665603ULL;
   if(!Str) {
     return 0;
   }
   while(*Str) {
-    hash ^= (uint8)*Str++;
+    hash ^= (uint8)(*Str++);
     hash *= 1099511628211ULL;
   }
   return hash;

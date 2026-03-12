@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "Core/Log.h"
+#include "Core/Name.h"
 #include "Core/Defines.h"
 #include "Core/EngineTypes.h"
 #include "Input/Input.h"

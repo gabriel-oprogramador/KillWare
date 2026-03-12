@@ -7,6 +7,16 @@ GT_EXTERN_C void Foo();
 void GameStart() {
   GT_INFO("Game Start");
   Foo();
+
+  FName gabriel = NameMake("Gabriel");
+  FName raphael = NameMake("Raphael");
+  FName playerOne = gabriel;
+  FName charater = NameMake("Gabriel");
+
+  GT_ALERT("Gabriel   %u:%s, %llu", gabriel, NameToStr(gabriel), NameHash(gabriel));
+  GT_ALERT("Raphael   %u:%s, %llu", raphael, NameToStr(raphael), NameHash(raphael));
+  GT_ALERT("PlayerOne %u:%s, %llu", playerOne, NameToStr(playerOne), NameHash(playerOne));
+  GT_ALERT("Charater  %u:%s, %llu", charater, NameToStr(charater), NameHash(charater));
 }
 
 void TestInputKey(EKeyCode KeyCode, cstring Name) {
