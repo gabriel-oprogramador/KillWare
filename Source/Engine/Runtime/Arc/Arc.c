@@ -100,22 +100,24 @@ static FChunkStorage* InternalAllocChunk(UArchetype* Archetype) {
 
 static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {
   {
-    uint32 perEntitySize = 0;
+    uint32 stride = sizeof(AActor);
     FBitset mask = Archetype->componentMask;
-    FComponentID id = 0;
+    uint32 id = 0;
     while(BitsetNextBitIndex(&mask, &id)) {
       UComponent* compInfo = SArc.components[id];
       if(compInfo == NULL) {
         continue;
       }
-      perEntitySize += compInfo->typeInfo.size;
+      stride += compInfo->typeInfo.size;
     }
-    Archetype->chunkCapacity = GT_BUFFER_16K / perEntitySize;
+    Archetype->chunkCapacity = GT_BUFFER_16K / stride;
+    Archetype->entityStride = stride;
   }
+
   {
     uint32 offset = 0;
-    uint32 id = 0;
     FBitset mask = Archetype->componentMask;
+    uint32 id = 0;
     while(BitsetNextBitIndex(&mask, &id)) {
       UComponent* compInfo = SArc.components[id];
       if(compInfo == NULL) {
@@ -123,8 +125,43 @@ static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {
       }
       offset = GT_ALIGN_FORWARD(offset, compInfo->typeInfo.align);
       Archetype->componentOffset[id] = offset;
+      Archetype->componentStride[id] = compInfo->typeInfo.size;
       offset += compInfo->typeInfo.size * Archetype->chunkCapacity;
     }
+    offset = GT_ALIGN_FORWARD(offset, GT_ALIGNOF(AActor));
+    Archetype->actorOffset = offset;
+    offset += sizeof(AActor) * Archetype->chunkCapacity;
     GT_ASSERT(offset <= GT_BUFFER_16K);
   }
 }
+
+/*static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {*/
+/*{*/
+/*uint32 perEntitySize = 0;*/
+/*FBitset mask = Archetype->componentMask;*/
+/*FComponentID id = 0;*/
+/*while(BitsetNextBitIndex(&mask, &id)) {*/
+/*UComponent* compInfo = SArc.components[id];*/
+/*if(compInfo == NULL) {*/
+/*continue;*/
+/*}*/
+/*perEntitySize += compInfo->typeInfo.size;*/
+/*}*/
+/*Archetype->chunkCapacity = GT_BUFFER_16K / perEntitySize;*/
+/*}*/
+/*{*/
+/*uint32 offset = 0;*/
+/*uint32 id = 0;*/
+/*FBitset mask = Archetype->componentMask;*/
+/*while(BitsetNextBitIndex(&mask, &id)) {*/
+/*UComponent* compInfo = SArc.components[id];*/
+/*if(compInfo == NULL) {*/
+/*continue;*/
+/*}*/
+/*offset = GT_ALIGN_FORWARD(offset, compInfo->typeInfo.align);*/
+/*Archetype->componentOffset[id] = offset;*/
+/*offset += compInfo->typeInfo.size * Archetype->chunkCapacity;*/
+/*}*/
+/*GT_ASSERT(offset <= GT_BUFFER_16K);*/
+/*}*/
+/*}*/

@@ -41,6 +41,7 @@ typedef struct FMatrix4 {
 
 // Others Type //============================================================================================//
 typedef uint64 FName;
+typedef uint64 AActor;  //Entity ID
 
 typedef struct FColor {
   uint8 r, g, b, a;

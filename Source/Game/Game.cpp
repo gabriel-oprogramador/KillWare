@@ -1,6 +1,7 @@
 // This file uses C++ only to test compatibility between C and C++.
 #include "CoreMinimal.h"
 #include "GameModule.h"
+#include "World/World.h"
 
 GT_EXTERN_C void Foo();
 
@@ -17,6 +18,21 @@ void GameStart() {
   GT_ALERT("Raphael   %u:%s, %llu", raphael, NameToStr(raphael), NameHash(raphael));
   GT_ALERT("PlayerOne %u:%s, %llu", playerOne, NameToStr(playerOne), NameHash(playerOne));
   GT_ALERT("Charater  %u:%s, %llu", charater, NameToStr(charater), NameHash(charater));
+
+  AActor aEnemy = WorldSpawnActor("EnemyOne");
+  AActor aPlayer = WorldSpawnActor("PlayerOne");
+  WorldRemoveActor(aEnemy);
+  AActor aFinalBoss = WorldSpawnActor("FinalBoss");
+
+  FActorEntry* entry = NULL;
+  if(ActorIsValid(aEnemy)) {
+    entry = WorldGetActorEntryByActor(aEnemy);
+    GT_ALERT("aEnemy     => DisplayName:%s, ArchName:%s, Index:%u, Version:%u", NameToStr(entry->actorName), NameToStr(entry->archName), ActorIndex(aEnemy), entry->version);
+  }
+  entry = WorldGetActorEntryByActor(aPlayer);
+  GT_ALERT("aPlayer    => DisplayName:%s, ArchName:%s, Index:%u, Version:%u", NameToStr(entry->actorName), NameToStr(entry->archName), ActorIndex(aPlayer), entry->version);
+  entry = WorldGetActorEntryByActor(aFinalBoss);
+  GT_ALERT("aFinalBoss => DisplayName:%s, ArchName:%s, Index:%u, Version:%u", NameToStr(entry->actorName), NameToStr(entry->archName), ActorIndex(aFinalBoss), entry->version);
 }
 
 void TestInputKey(EKeyCode KeyCode, cstring Name) {

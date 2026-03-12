@@ -7,4 +7,5 @@
 #include "Core/Name.h"
 #include "Core/Defines.h"
 #include "Core/EngineTypes.h"
-#include "Input/Input.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Input.h"

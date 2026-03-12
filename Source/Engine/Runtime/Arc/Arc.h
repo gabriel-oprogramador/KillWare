@@ -9,7 +9,6 @@
 // 256 é o valor maximo de bitset por contexto
 #define ARC_MAX_CAPACITY 256
 
-typedef uint64 AActor;  //Entity ID
 typedef uint32 FComponentID;
 typedef uint32 FArchetypeID;
 typedef uint32 FQueryID;
@@ -64,7 +63,9 @@ typedef struct UArchetype {
   FArchetypeID runtimeID;
   uint16 entityStride;
   uint16 chunkCapacity;
+  uint16 actorOffset;
   uint16 componentOffset[ARC_MAX_CAPACITY];
+  uint16 componentStride[ARC_MAX_CAPACITY];
 } UArchetype;
 
 GT_EXTERN_C_BEGIN
