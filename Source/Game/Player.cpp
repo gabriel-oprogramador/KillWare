@@ -1,13 +1,14 @@
 #include "Player.h"
+#include "World/World.h"
 
 // TODO: Para testes, ainda sem Storage real
 #include "Platform/Platform.h"
-void TestChunkAlloc(cstring ArchetypeName, uint32 Count) {
-  UArchetype* arc = ArcFindArchetypeByName(ArchetypeName);
-  arc->firstChunk = (FChunkStorage*)PMemAlloc(sizeof(FChunkStorage));
-  arc->lastChunk = arc->firstChunk;
-  arc->lastChunk->count = Count;
-}
+//void TestChunkAlloc(cstring ArchetypeName, uint32 Count) {
+//UArchetype* arc = ArcFindArchetypeByName(ArchetypeName);
+//arc->firstChunk = (FChunkStorage*)PMemAlloc(sizeof(FChunkStorage));
+//arc->lastChunk = arc->firstChunk;
+//arc->lastChunk->count = Count;
+//}
 
 // TODO: Mover para Engine
 REGISTER_COMPONENT(UTransform) {
@@ -38,42 +39,45 @@ REGISTER_COMPONENT(UEnemyState) {
   UPROPERTY(UEnemyState, float, patrolRadius);
 }
 
-DECLARE_ARCHETYPE(APlayer) {
-  ADD_COMPONENT(UTransform);
-  ADD_COMPONENT(UPlayerState);
-  ADD_COMPONENT(USpriteRenderer);
-  ADD_COMPONENT(URigidBody);
-}
-DECLARE_ARCHETYPE(AEnemy) {
-  ADD_COMPONENT(UTransform);
-  ADD_COMPONENT(UEnemyState);
-  ADD_COMPONENT(USpriteRenderer);
-}
-
-DECLARE_QUERY(PlayerMovement, UTransform, URigidBody);
-DECLARE_QUERY(PlayerLevelUp, UPlayerState);
-DECLARE_QUERY(EnemyAI, UTransform, UEnemyState);
-DECLARE_QUERY(SubmitSprite, UTransform, USpriteRenderer);
+static void TestActorsLifecycle();
 
 GT_EXTERN_C void Foo() {
-  TestChunkAlloc("APlayer", 1);
-  TestChunkAlloc("AEnemy", 2);
+  AActor aPlayer = WorldSpawnActor("PlayerOne");
+  FActorEntry* entry = WorldGetActorEntryByActor(aPlayer);
 
-  GT_ALERT("Foreach:PlayerMovement");
-  FOR_EACH(PlayerMovement, View) {
-    GT_ALERT("Loop:%s", arc->name);
+  GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
+  {
+    UTransform* transform = ActorAddComponent(aPlayer, UTransform);
+    transform->location = (FVector3){11, 12, 13};
+    transform->scale = (FVector3){1, 1, 1};
+    transform->rotation = (FQuat){0, 1, 0, 03};
   }
-  GT_ALERT("Foreach:PlayerLevelUp");
-  FOR_EACH(PlayerLevelUp, View) {
-    GT_ALERT("Loop:%s", arc->name);
+  {
+    GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
+    UTransform* trs = ActorGetComponent(aPlayer, UTransform);
+    GT_ALERT("Player Location(%.2f, %.2f, %.2f)", trs->location.x, trs->location.y, trs->location.z);
   }
-  GT_ALERT("Foreach:SubmitSprite");
-  FOR_EACH(SubmitSprite, View) {
-    GT_ALERT("Loop:%s", arc->name);
+  {
+    ActorAddComponent(aPlayer, UPlayerState);
+    GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
+    UTransform* trs = ActorGetComponent(aPlayer, UTransform);
+    GT_ALERT("Player Location(%.2f, %.2f, %.2f)", trs->location.x, trs->location.y, trs->location.z);
   }
-  GT_ALERT("Foreach:EnemyAI");
-  FOR_EACH(EnemyAI, View) {
-    GT_ALERT("Loop:%s", arc->name);
+  {
+    ActorAddComponent(aPlayer, USpriteRenderer);
+    GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
+    UTransform* trs = ActorGetComponent(aPlayer, UTransform);
+    GT_ALERT("Player Location(%.2f, %.2f, %.2f)", trs->location.x, trs->location.y, trs->location.z);
+  }
+  {
+    ActorRemoveComponent(aPlayer, UTransform);
+    GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
+    UTransform* trs = ActorGetComponent(aPlayer, UTransform);
+    if(trs) {
+      GT_ALERT("Player Location(%.2f, %.2f, %.2f)", trs->location.x, trs->location.y, trs->location.z);
+    } else {
+      GT_ALERT("UTransform Component not found");
+    }
   }
 
   UComponent* component = GetUComponent(UPlayerState);
@@ -86,4 +90,110 @@ GT_EXTERN_C void Foo() {
     GT_ALERT("Property => %s::%s, Offset:%llu", component->typeInfo.name, prop->name, prop->offset);
     prop = prop->next;
   }
+  TestActorsLifecycle();
+}
+
+static void TestActorsLifecycle() {
+  AActor enemies[5] = {0};
+
+  GT_INFO("[TEST] Spawn Actors");
+
+  enemies[0] = WorldSpawnActor("EnemyOne");
+  enemies[1] = WorldSpawnActor("EnemyTwo");
+  enemies[2] = WorldSpawnActor("EnemyThree");
+  enemies[3] = WorldSpawnActor("EnemyFour");
+  enemies[4] = WorldSpawnActor("EnemyFive");
+
+  GT_INFO("[TEST] Add UEnemyState");
+
+  for(uint32 i = 0; i < 5; i++) {
+    UEnemyState* st = ActorAddComponent(enemies[i], UEnemyState);
+    st->aggression = (i + 1) * 10;
+  }
+
+  GT_INFO("[STATE] After AddComponent");
+
+  for(uint32 i = 0; i < 5; i++) {
+    FActorEntry* entry = WorldGetActorEntryByActor(enemies[i]);
+
+    if(entry) {
+      UEnemyState* st = ActorGetComponent(enemies[i], UEnemyState);
+
+      if(st) {
+        GT_ALERT("Actor:%s ChunkIndex:%u Aggression:%u", NameToStr(entry->actorName), entry->chunkIndex, st->aggression);
+      }
+    }
+  }
+
+  /* ------------------------------------- */
+  /* Remove component de um ator no meio   */
+  /* ------------------------------------- */
+
+  GT_INFO("[TEST] Remove UEnemyState from EnemyThree");
+
+  ActorRemoveComponent(enemies[2], UEnemyState);
+
+  for(uint32 i = 0; i < 5; i++) {
+    FActorEntry* entry = WorldGetActorEntryByActor(enemies[i]);
+
+    if(entry) {
+      UEnemyState* st = ActorGetComponent(enemies[i], UEnemyState);
+
+      if(st) {
+        GT_ALERT("Actor:%s ChunkIndex:%u Aggression:%u", NameToStr(entry->actorName), entry->chunkIndex, st->aggression);
+      } else {
+        GT_ALERT("Actor:%s without UEnemyState", NameToStr(entry->actorName));
+      }
+    }
+  }
+
+  /* ------------------------------------- */
+  /* Destroy um ator no meio (swap-back)   */
+  /* ------------------------------------- */
+
+  GT_INFO("[TEST] Destroy EnemyTwo");
+
+  WorldDestroyActor(enemies[1]);
+
+  for(uint32 i = 0; i < 5; i++) {
+    FActorEntry* entry = WorldGetActorEntryByActor(enemies[i]);
+
+    if(entry) {
+      UEnemyState* st = ActorGetComponent(enemies[i], UEnemyState);
+
+      if(st) {
+        GT_ALERT("Actor:%s ChunkIndex:%u Aggression:%u", NameToStr(entry->actorName), entry->chunkIndex, st->aggression);
+      } else {
+        GT_ALERT("Actor:%s alive but without component", NameToStr(entry->actorName));
+      }
+    } else {
+      GT_ALERT("Actor[%u] destroyed or invalid", i);
+    }
+  }
+
+  /* ------------------------------------- */
+  /* Adiciona novamente componente         */
+  /* ------------------------------------- */
+
+  GT_INFO("[TEST] Re-add UEnemyState to EnemyThree");
+
+  UEnemyState* st = ActorAddComponent(enemies[2], UEnemyState);
+
+  if(st) {
+    st->aggression = 999;
+  }
+
+  for(uint32 i = 0; i < 5; i++) {
+    FActorEntry* entry = WorldGetActorEntryByActor(enemies[i]);
+
+    if(entry) {
+      UEnemyState* s = ActorGetComponent(enemies[i], UEnemyState);
+
+      if(s) {
+        GT_ALERT("Actor:%s ChunkIndex:%u Aggression:%u", NameToStr(entry->actorName), entry->chunkIndex, s->aggression);
+      }
+    }
+  }
+
+  GT_INFO("[TEST END]");
 }

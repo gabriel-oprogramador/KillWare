@@ -1,11 +1,16 @@
 #include "Arc.h"
 #include "Platform/Platform.h"
+#include "World/World.h"
+#include "Core/Name.h"
 
-static FChunkStorage* InternalAllocChunk(UArchetype* Archetype);
-static void InternalGenerateArchetypeLayout(UArchetype* Archetype);
+static void InternalSwapBack(FArchetype* Archetype, FChunkStorage* CurrentChunk, uint32 RemoveIndex);
+static FArchetype* InternalFindOrCreateArchetype(FBitset Mask);
+static FChunkStorage* InternalAllocChunk(FArchetype* Archetype);
+static void InternalBuildArchetypeLayout(FArchetype* Archetype);
+static void InternalBuildEdge(FArchetype* Src, FArchetype* Dst, FArchetypeEdge* Edge);
 
 static struct {
-  UArchetype* archetypes[ARC_MAX_CAPACITY];
+  FArchetype* archetypes[ARC_MAX_CAPACITY];
   UComponent* components[ARC_MAX_CAPACITY];
   UQuery* queries[ARC_MAX_CAPACITY];
   uint32 numArchetypes;
@@ -14,77 +19,198 @@ static struct {
 } SArc;
 
 void ArcInitialize() {
-  for(uint32 c = 0; c < SArc.numArchetypes; c++) {
-    InternalGenerateArchetypeLayout(SArc.archetypes[c]);
-  }
-  for(uint32 q = 0; q < SArc.numQueries; q++) {
-    for(uint32 a = 0; a < SArc.numArchetypes; a++) {
-      UQuery* query = SArc.queries[q];
-      UArchetype* arc = SArc.archetypes[a];
-      if(BitsetHasAll(&arc->componentMask, &query->queryMask)) {
-        BitsetSet(&query->arcMask, arc->runtimeID);
-        query->arcCount++;
-      }
-    }
-  }
-  GT_ALERT("//====================// Arc State //====================//");
-  for(uint32 c = 0; c < SArc.numQueries; c++) {
-    UQuery* query = SArc.queries[c];
-    GT_ALERT("Begin Query:%s, Archetypes:%u", query->name, query->arcCount);
-    FBitset mask = query->arcMask;
-    uint32 arcID = 0xFFFFFF;
-    while(BitsetNextBitIndex(&mask, &arcID)) {
-      UArchetype* arc = SArc.archetypes[arcID];
-      GT_ALERT("\t\tFind: %s", arc->name);
-    }
-    GT_ALERT("End Query:%s", query->name);
-  }
-  GT_ALERT("//====================// Arc State //====================//");
 }
 
 void ArcTerminate() {
 }
 
-FArchetypeID RegisterArchetype(UArchetype* NewArchetype) {
-  GT_ASSERT(NewArchetype && SArc.numArchetypes < ARC_MAX_CAPACITY);
-  uint32 index = SArc.numArchetypes++;
-  SArc.archetypes[index] = NewArchetype;
-  return (FArchetypeID)index;
+static void InternalUpdateArchetypeDebugName(FArchetype* Archetype) {
+  char buffer[GT_BUFFER_1KB];
+  uint32 used = 0;
+  FBitset mask = Archetype->componentMask;
+  uint32 id;
+  while(BitsetNextBitIndex(&mask, &id)) {
+    UComponent* compInfo = SArc.components[id];
+    uint32 length = strlen(compInfo->typeInfo.name);
+    PMemCopy(buffer + used, (void*)compInfo->typeInfo.name, length);
+    used += length;
+    buffer[used++] = ' ';
+    buffer[used++] = '|';
+    buffer[used++] = ' ';
+  }
+  buffer[used] = '\0';
+  Archetype->name = NameMake(buffer);
 }
 
-FComponentID RegisterComponent(UComponent* NewComponent) {
+void ArcAddEntity(AActor Actor) {
+  FActorEntry* entry = WorldGetActorEntryByActor(Actor);
+  entry->archetype = ArcGetEmptyArchetype();
+  entry->chunk = NULL;
+  entry->chunkIndex = 0;
+}
+
+void ArcRemoveEntity(AActor Actor) {
+  FActorEntry* entry = WorldGetActorEntryByActor(Actor);
+  if(entry && entry->chunk && entry->archetype) {
+    InternalSwapBack(entry->archetype, entry->chunk, entry->chunkIndex);
+    entry->archetype = ArcGetEmptyArchetype();
+    entry->chunkIndex = 0;
+    entry->chunk = NULL;
+    return;
+  }
+}
+
+FComponentID ArcRegisterComponent(UComponent* NewComponent) {
   GT_ASSERT(NewComponent && SArc.numComponents < ARC_MAX_CAPACITY);
   uint32 index = SArc.numComponents++;
   SArc.components[index] = NewComponent;
   return (FComponentID)index;
 }
 
-FQueryID RegisterQuery(UQuery* NewQuery) {
-  GT_ASSERT(NewQuery && SArc.numQueries < ARC_MAX_CAPACITY);
-  uint32 index = SArc.numQueries++;
-  SArc.queries[index] = NewQuery;
-  GT_ALERT("RegisterQuery:%s", NewQuery->name);
-  return (FQueryID)index;
-}
-
-UArchetype* ArcFindArchetypeByID(FArchetypeID ID) {
-  GT_ASSERT(ID < GT_BITSET_MAX_INDEX);
-  if(ID >= SArc.numArchetypes) {
-    return NULL;
+FArchetype* ArcGetEmptyArchetype() {
+  static FArchetype* emptyArc = NULL;
+  if(emptyArc == NULL) {
+    emptyArc = (FArchetype*)PMemAlloc(sizeof(FArchetype));
   }
-  return SArc.archetypes[ID];
+  return emptyArc;
 }
 
-UArchetype* ArcFindArchetypeByName(cstring Name) {
+FArchetype* ArcFindArchetype(FBitset Mask) {
   for(uint32 c = 0; c < SArc.numArchetypes; c++) {
-    if(strcmp(SArc.archetypes[c]->name, Name) == 0) {  // TODO:Trocar pra FName...
-      return SArc.archetypes[c];
+    FArchetype* arc = SArc.archetypes[c];
+    if(BitsetEquals(&arc->componentMask, &Mask)) {
+      return arc;
     }
   }
   return NULL;
 }
 
-static FChunkStorage* InternalAllocChunk(UArchetype* Archetype) {
+FArchetype* ArcAddComponent(FArchetype* Archetype, FComponentID ComponentID) {
+  if(ComponentID >= ARC_MAX_COMPONENTS_TYPES || BitsetHas(&Archetype->componentMask, ComponentID)) {
+    return Archetype;
+  }
+  FArchetypeEdge* edge = &Archetype->add[ComponentID];
+  if(edge->archetype) {
+    return edge->archetype;
+  }
+  FBitset newMask = Archetype->componentMask;
+  BitsetSet(&newMask, ComponentID);
+  FArchetype* dst = InternalFindOrCreateArchetype(newMask);
+  InternalBuildEdge(Archetype, dst, &Archetype->add[ComponentID]);
+  InternalBuildEdge(dst, Archetype, &dst->remove[ComponentID]);
+  return dst;
+}
+
+FArchetype* ArcRemoveComponent(FArchetype* Archetype, FComponentID ComponentID) {
+  if(ComponentID >= ARC_MAX_COMPONENTS_TYPES || !BitsetHas(&Archetype->componentMask, ComponentID)) {
+    return Archetype;
+  }
+  FArchetypeEdge* edge = &Archetype->remove[ComponentID];
+  if(edge->archetype) {
+    return edge->archetype;
+  }
+  FBitset newMask = Archetype->componentMask;
+  BitsetReset(&newMask, ComponentID);
+  FArchetype* dst = InternalFindOrCreateArchetype(newMask);
+  InternalBuildEdge(Archetype, dst, &Archetype->remove[ComponentID]);
+  InternalBuildEdge(dst, Archetype, &dst->add[ComponentID]);
+  return dst;
+}
+
+void ArcMoveActorArchetype(AActor Actor, FArchetypeEdge* Edge) {
+  FActorEntry* entry = WorldGetActorEntryByActor(Actor);
+  if(entry == NULL) {
+    return;
+  }
+  FArchetype* srcArc = entry->archetype;
+  FArchetype* dstArc = Edge->archetype;
+
+  FChunkStorage* srcChunk = entry->chunk;
+  uint32 srcIndex = entry->chunkIndex;
+
+  FChunkStorage* dstChunk = dstArc->lastChunk;
+  if(dstChunk == NULL || dstChunk->count >= dstArc->chunkCapacity) {
+    dstChunk = InternalAllocChunk(dstArc);
+  }
+  uint32 dstIndex = dstChunk->count++;
+  uint8* srcBase = srcChunk->data;
+  uint8* dstBase = dstChunk->data;
+
+  if(srcChunk == NULL) {  // TODO: Pequena gambiarra pra atores vazios
+    void* srcActor = &Actor;
+    void* dstActor = dstBase + dstArc->actorOffset + dstIndex * sizeof(AActor);
+    entry->archetype = dstArc;
+    entry->chunk = dstChunk;
+    entry->chunkIndex = dstIndex;
+    PMemCopy(dstActor, srcActor, sizeof(AActor));
+    return;
+  }
+
+  void* srcActor = srcBase + srcArc->actorOffset + srcIndex * sizeof(AActor);
+  void* dstActor = dstBase + dstArc->actorOffset + dstIndex * sizeof(AActor);
+  PMemCopy(dstActor, srcActor, sizeof(AActor));
+
+  for(uint32 c = 0; c < Edge->opCount; c++) {
+    uint16 srcOffset = Edge->srcColOffset[c];
+    uint16 dstOffset = Edge->dstColOffset[c];
+    uint16 size = Edge->elementSize[c];
+    PMemCopy(dstBase + dstOffset + dstIndex * size, srcBase + srcOffset + srcIndex * size, size);
+  }
+
+  InternalSwapBack(srcArc, srcChunk, srcIndex);
+
+  entry->archetype = dstArc;
+  entry->chunk = dstChunk;
+  entry->chunkIndex = dstIndex;
+}
+
+// Mover da Ultima Chunk  pra Atual
+static void InternalSwapBack(FArchetype* Archetype, FChunkStorage* CurrentChunk, uint32 RemoveIndex) {
+  if(CurrentChunk->count == 0) {
+    return;
+  }
+  FChunkStorage* lastChunk = Archetype->lastChunk;
+  uint32 lastIndex = lastChunk->count - 1;
+  if(CurrentChunk == lastChunk && RemoveIndex == lastIndex) {
+    CurrentChunk->count--;
+    return;
+  }
+  void* srcActor = lastChunk->data + Archetype->actorOffset + lastIndex * sizeof(AActor);
+  void* dstActor = CurrentChunk->data + Archetype->actorOffset + RemoveIndex * sizeof(AActor);
+  PMemCopy(dstActor, srcActor, sizeof(AActor));
+  FBitset mask = Archetype->componentMask;
+  uint32 compID = 0;
+  while(BitsetNextBitIndex(&mask, &compID)) {
+    uint32 stride = Archetype->componentStride[compID];
+    uint32 offset = Archetype->componentOffset[compID];
+    void* srcComp = lastChunk->data + offset + lastIndex * stride;
+    void* dstComp = CurrentChunk->data + offset + RemoveIndex * stride;
+    PMemCopy(dstComp, srcComp, stride);
+  }
+  FActorEntry* movedEntry = WorldGetActorEntryByActor(*(AActor*)dstActor);
+  movedEntry->chunk = CurrentChunk;
+  movedEntry->chunkIndex = RemoveIndex;
+  lastChunk->count--;
+  // Nao vou desalocar a last Chunk caso vazia!
+}
+
+static FArchetype* InternalFindOrCreateArchetype(FBitset Mask) {
+  FArchetype* archetype = ArcFindArchetype(Mask);
+  if(archetype != NULL) {
+    return archetype;
+  }
+  archetype = PMemAlloc(sizeof(FArchetype));
+  GT_ASSERT(SArc.numComponents < ARC_MAX_CAPACITY);
+  GT_ASSERT(archetype);
+  archetype->componentMask = Mask;
+  InternalBuildArchetypeLayout(archetype);
+  InternalUpdateArchetypeDebugName(archetype);
+  archetype->runtimeID = SArc.numArchetypes++;
+  SArc.archetypes[archetype->runtimeID] = archetype;
+  return archetype;
+}
+
+static FChunkStorage* InternalAllocChunk(FArchetype* Archetype) {
   FChunkStorage* chunk = (FChunkStorage*)PMemAlloc(sizeof(FChunkStorage));
   chunk->count = 0;
   chunk->next = 0;
@@ -98,7 +224,7 @@ static FChunkStorage* InternalAllocChunk(UArchetype* Archetype) {
   return chunk;
 }
 
-static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {
+static void InternalBuildArchetypeLayout(FArchetype* Archetype) {
   {
     uint32 stride = sizeof(AActor);
     FBitset mask = Archetype->componentMask;
@@ -135,33 +261,17 @@ static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {
   }
 }
 
-/*static void InternalGenerateArchetypeLayout(UArchetype* Archetype) {*/
-/*{*/
-/*uint32 perEntitySize = 0;*/
-/*FBitset mask = Archetype->componentMask;*/
-/*FComponentID id = 0;*/
-/*while(BitsetNextBitIndex(&mask, &id)) {*/
-/*UComponent* compInfo = SArc.components[id];*/
-/*if(compInfo == NULL) {*/
-/*continue;*/
-/*}*/
-/*perEntitySize += compInfo->typeInfo.size;*/
-/*}*/
-/*Archetype->chunkCapacity = GT_BUFFER_16K / perEntitySize;*/
-/*}*/
-/*{*/
-/*uint32 offset = 0;*/
-/*uint32 id = 0;*/
-/*FBitset mask = Archetype->componentMask;*/
-/*while(BitsetNextBitIndex(&mask, &id)) {*/
-/*UComponent* compInfo = SArc.components[id];*/
-/*if(compInfo == NULL) {*/
-/*continue;*/
-/*}*/
-/*offset = GT_ALIGN_FORWARD(offset, compInfo->typeInfo.align);*/
-/*Archetype->componentOffset[id] = offset;*/
-/*offset += compInfo->typeInfo.size * Archetype->chunkCapacity;*/
-/*}*/
-/*GT_ASSERT(offset <= GT_BUFFER_16K);*/
-/*}*/
-/*}*/
+static void InternalBuildEdge(FArchetype* Src, FArchetype* Dst, FArchetypeEdge* Edge) {
+  Edge->archetype = Dst;
+  Edge->opCount = 0;
+  FBitset common;
+  BitsetClear(&common);
+  common = BitsetAnd(&Src->componentMask, &Dst->componentMask);
+  uint32 compID = 0;
+  while(BitsetNextBitIndex(&common, &compID)) {
+    uint16 i = Edge->opCount++;
+    Edge->srcColOffset[i] = Src->componentOffset[compID];
+    Edge->dstColOffset[i] = Dst->componentOffset[compID];
+    Edge->elementSize[i] = Src->componentStride[compID];
+  }
+}

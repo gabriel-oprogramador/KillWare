@@ -532,17 +532,11 @@ void PMemFree(void* Data) {
 
 void* PMemAlloc(uint64 Size) {
   GT_ASSERT(Size > 0);
-  static uint32 n = 0;
-  n++;
-  GT_ALERT("Alloc:%u", n);
   return calloc(1, Size);
 }
 
 void* PMemRealloc(void* Data, uint64 Size) {
   GT_ASSERT(Size > 0);
-  static uint32 n = 0;
-  n++;
-  GT_ALERT("Realloc:%u", n);
   return realloc(Data, Size);
 }
 

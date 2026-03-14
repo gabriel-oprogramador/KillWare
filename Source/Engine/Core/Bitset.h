@@ -38,57 +38,57 @@ static inline void BitsetReset(FBitset* Self, uint32 Index) {
   }
 }
 
-// 1️⃣ Testa se **um bit específico** está setado
-static inline bool BitsetHas(const FBitset* self, uint32_t bitIndex) {
-  GT_ASSERT(bitIndex < GT_BITSET_MAX_INDEX);
-  if(bitIndex >= GT_BITSET_MAX_INDEX) {
+// Testa se **um bit específico** está setado
+static inline bool BitsetHas(const FBitset* Self, uint32 BitIndex) {
+  GT_ASSERT(BitIndex < GT_BITSET_MAX_INDEX);
+  if(BitIndex >= GT_BITSET_MAX_INDEX) {
     return false;
   }
-  uint32 word = bitIndex / 64;
-  uint32 bit = bitIndex % 64;
+  uint32 word = BitIndex / 64;
+  uint32 bit = BitIndex % 64;
   bool result = false;
   switch(word) {
-    case 0: result = (self->a & ((uint64)1 << bit)) != 0; break;
-    case 1: result = (self->b & ((uint64)1 << bit)) != 0; break;
-    case 2: result = (self->c & ((uint64)1 << bit)) != 0; break;
-    case 3: result = (self->d & ((uint64)1 << bit)) != 0; break;
+    case 0: result = (Self->a & ((uint64)1 << bit)) != 0; break;
+    case 1: result = (Self->b & ((uint64)1 << bit)) != 0; break;
+    case 2: result = (Self->c & ((uint64)1 << bit)) != 0; break;
+    case 3: result = (Self->d & ((uint64)1 << bit)) != 0; break;
   }
   return result;
 }
 
-// 2️⃣ Testa se **todos os bits da máscara estão setados**
-static inline bool BitsetHasAll(const FBitset* self, const FBitset* mask) {
-  bool aOk = (self->a & mask->a) == mask->a;
-  bool bOk = (self->b & mask->b) == mask->b;
-  bool cOk = (self->c & mask->c) == mask->c;
-  bool dOk = (self->d & mask->d) == mask->d;
+// Testa se **todos os bits da máscara estão setados**
+static inline bool BitsetHasAll(const FBitset* Self, const FBitset* Mask) {
+  bool aOk = (Self->a & Mask->a) == Mask->a;
+  bool bOk = (Self->b & Mask->b) == Mask->b;
+  bool cOk = (Self->c & Mask->c) == Mask->c;
+  bool dOk = (Self->d & Mask->d) == Mask->d;
   return aOk && bOk && cOk && dOk;
 }
 
-// 3️⃣ Testa se **qualquer bit da máscara está setado**
-static inline bool BitsetHasAny(const FBitset* self, const FBitset* mask) {
-  bool aAny = (self->a & mask->a) != 0;
-  bool bAny = (self->b & mask->b) != 0;
-  bool cAny = (self->c & mask->c) != 0;
-  bool dAny = (self->d & mask->d) != 0;
+// Testa se **qualquer bit da máscara está setado**
+static inline bool BitsetHasAny(const FBitset* Self, const FBitset* Mask) {
+  bool aAny = (Self->a & Mask->a) != 0;
+  bool bAny = (Self->b & Mask->b) != 0;
+  bool cAny = (Self->c & Mask->c) != 0;
+  bool dAny = (Self->d & Mask->d) != 0;
   return aAny || bAny || cAny || dAny;
 }
 
-// 4️⃣ Testa se **nenhum bit da máscara está setado**
-static inline bool BitsetHasNone(const FBitset* self, const FBitset* mask) {
-  bool aNone = (self->a & mask->a) == 0;
-  bool bNone = (self->b & mask->b) == 0;
-  bool cNone = (self->c & mask->c) == 0;
-  bool dNone = (self->d & mask->d) == 0;
+// Testa se **nenhum bit da máscara está setado**
+static inline bool BitsetHasNone(const FBitset* Self, const FBitset* Mask) {
+  bool aNone = (Self->a & Mask->a) == 0;
+  bool bNone = (Self->b & Mask->b) == 0;
+  bool cNone = (Self->c & Mask->c) == 0;
+  bool dNone = (Self->d & Mask->d) == 0;
   return aNone && bNone && cNone && dNone;
 }
 
-// 5️⃣ Testa se **Self é exatamente igual à Mask**
-static inline bool BitsetEquals(const FBitset* self, const FBitset* mask) {
-  bool aEq = self->a == mask->a;
-  bool bEq = self->b == mask->b;
-  bool cEq = self->c == mask->c;
-  bool dEq = self->d == mask->d;
+// Testa se **Self é exatamente igual à Mask**
+static inline bool BitsetEquals(const FBitset* Self, const FBitset* Mask) {
+  bool aEq = Self->a == Mask->a;
+  bool bEq = Self->b == Mask->b;
+  bool cEq = Self->c == Mask->c;
+  bool dEq = Self->d == Mask->d;
   return aEq && bEq && cEq && dEq;
 }
 
@@ -107,11 +107,13 @@ static inline void BitsetFlip(FBitset* Self, uint32_t Index) {
   }
 }
 
-static inline void BitsetAnd(FBitset* Self, const FBitset* Other) {
-  Self->a &= Other->a;
-  Self->b &= Other->b;
-  Self->c &= Other->c;
-  Self->d &= Other->d;
+static inline FBitset BitsetAnd(FBitset* Self, const FBitset* Other) {
+  FBitset bitset;
+  bitset.a = Self->a & Other->a;
+  bitset.b = Self->b & Other->b;
+  bitset.c = Self->c & Other->c;
+  bitset.d = Self->d & Other->d;
+  return bitset;
 }
 
 static inline void BitsetOr(FBitset* Self, const FBitset* Other) {

@@ -2,6 +2,8 @@
 #include "Platform/Platform.h"
 #include "Core/Log.h"
 #include "Core/Name.h"
+#include "Core/Bitset.h"
+#include "Arc/Arc.h"
 #include "GameFramework/Actor.h"
 
 #define GT_INITIAL_ACTOR_CAPACITY 1024
@@ -19,7 +21,7 @@ AActor WorldSpawnActor(cstring Name) {
   uint32 index = 0;
   uint32 version = 0;
   if(SActorTable.entries == NULL) {
-    SActorTable.count = 0;
+    SActorTable.count = 1;  // index 0 is reserved as invalid
     SActorTable.capacity = GT_INITIAL_ACTOR_CAPACITY;
     SActorTable.entries = (FActorEntry*)PMemAlloc(SActorTable.capacity * sizeof(FActorEntry));
     SActorTable.firstFree = 0;
@@ -41,20 +43,26 @@ AActor WorldSpawnActor(cstring Name) {
     }
     index = SActorTable.count++;
     entry = &SActorTable.entries[index];
-    version = 1;
+    version = 1;  // version 0 is reserved as invalid
   }
+  FBitset emptyMask;
+  BitsetClear(&emptyMask);
   AActor actor = ActorMake(index, version);
   entry->actorName = NameMake(Name);
   entry->archName = 0;
   entry->version = version;
+  ArcAddEntity(actor);
   return actor;
 }
 
-void WorldRemoveActor(AActor Actor) {
+void WorldDestroyActor(AActor Actor) {
   FActorEntry* entry = WorldGetActorEntryByActor(Actor);
   if(entry == NULL) {
     return;
   }
+
+  ArcRemoveEntity(Actor);
+
   entry->actorName = 0;
   entry->archName = 0;
   entry->version = (++entry->version == 0) ? 1 : entry->version;
@@ -80,11 +88,11 @@ AActor WorldFindActorByName(FName ActorName) {
 FActorEntry* WorldGetActorEntryByActor(AActor Actor) {
   uint32 index = ActorIndex(Actor);
   uint32 version = ActorVersion(Actor);
-  if(index >= SActorTable.count) {
+  if(Actor == 0 || index == 0 || index >= SActorTable.count) {
     return NULL;
   }
   FActorEntry* entry = &SActorTable.entries[index];
-  if(entry->version != version) {
+  if(version == 0 || entry->version != version) {
     return NULL;
   }
   return entry;

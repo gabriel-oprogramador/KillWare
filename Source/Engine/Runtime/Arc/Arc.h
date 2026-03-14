@@ -7,7 +7,9 @@
 //TODO: Mudar de cstring pra FName
 
 // 256 é o valor maximo de bitset por contexto
-#define ARC_MAX_CAPACITY 256
+#define ARC_MAX_CAPACITY             256
+#define ARC_MAX_ARCHETYPE_COMPONENTS 16
+#define ARC_MAX_COMPONENTS_TYPES     256
 
 typedef uint32 FComponentID;
 typedef uint32 FArchetypeID;
@@ -47,36 +49,42 @@ typedef struct FChunkStorage {
   uint8 data[GT_BUFFER_16K];
 } FChunkStorage;
 
-typedef struct UActor {
-  FChunkStorage* chunk;
-  AActor owner;
-  uint32 index;
-  uint32 version;
-} UActor;
+// TODO: Nova versao para Archetypes dinamicos
+typedef struct FArchetypeEdge {
+  struct FArchetype* archetype;
+  uint16 opCount;
+  uint16 srcColOffset[ARC_MAX_ARCHETYPE_COMPONENTS];
+  uint16 dstColOffset[ARC_MAX_ARCHETYPE_COMPONENTS];
+  uint16 elementSize[ARC_MAX_ARCHETYPE_COMPONENTS];
+} FArchetypeEdge;
 
-typedef struct UArchetype {
+typedef struct FArchetype {
+  FName name;
   FChunkStorage* firstChunk;
   FChunkStorage* lastChunk;
-  UActor* handles;
-  cstring name;
-  FBitset componentMask;
   FArchetypeID runtimeID;
+  FBitset componentMask;
   uint16 entityStride;
   uint16 chunkCapacity;
   uint16 actorOffset;
+  FArchetypeEdge add[ARC_MAX_CAPACITY];
+  FArchetypeEdge remove[ARC_MAX_CAPACITY];
   uint16 componentOffset[ARC_MAX_CAPACITY];
   uint16 componentStride[ARC_MAX_CAPACITY];
-} UArchetype;
+} FArchetype;
 
 GT_EXTERN_C_BEGIN
 
-ENGINE_API FArchetypeID RegisterArchetype(UArchetype* NewArchetype);
-ENGINE_API FComponentID RegisterComponent(UComponent* NewComponent);
-ENGINE_API FQueryID RegisterQuery(UQuery* NewQuery);
+ENGINE_API
 
-ENGINE_API UActor ArcAddEntity();
-ENGINE_API UArchetype* ArcFindArchetypeByID(FArchetypeID ID);
-ENGINE_API UArchetype* ArcFindArchetypeByName(cstring Name);
+ENGINE_API void ArcAddEntity(AActor Actor);
+ENGINE_API void ArcRemoveEntity(AActor Actor);
+ENGINE_API FComponentID ArcRegisterComponent(UComponent* NewComponent);
+ENGINE_API FArchetype* ArcGetEmptyArchetype();
+ENGINE_API FArchetype* ArcFindArchetype(FBitset Mask);
+ENGINE_API FArchetype* ArcAddComponent(FArchetype* Archetype, FComponentID ComponentID);
+ENGINE_API FArchetype* ArcRemoveComponent(FArchetype* Archetype, FComponentID ComponentID);
+ENGINE_API void ArcMoveActorArchetype(AActor Actor, FArchetypeEdge* Edge);
 
 GT_EXTERN_C_END
 
@@ -117,7 +125,7 @@ GT_EXTERN_C_END
       comp.typeInfo.size = sizeof(Type);              \
       comp.typeInfo.align = GT_ALIGNOF(Type);         \
       comp.typeInfo.hash = HashFNV1a64FromStr(#Type); \
-      comp.runtimeID = RegisterComponent(&comp);      \
+      comp.runtimeID = ArcRegisterComponent(&comp);   \
     }                                                 \
     return &comp;                                     \
   }                                                   \
