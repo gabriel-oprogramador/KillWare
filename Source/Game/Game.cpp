@@ -77,7 +77,7 @@ void PlayerLevelUpSystem(float DeltaTime) {
     //GT_INFO("Actor:Player, Score:%u, level:%u", state->score, state->level);
   }
   QueryEach(qEnemyPatrol) {
-    AActor* actor QueryGetActor();
+    AActor* actor = QueryGetActor();
     UEnemyState* state = QueryGetComponent(UEnemyState);
     cstring actorName = NameToStr(ActorGetDisplayName(*actor));
     //GT_INFO("Actor:%s, patrolRadius(%.2f), Aggression(%u), Archetype:%s", actorName, state->patrolRadius, state->aggression, NameToStr(arc->name));
