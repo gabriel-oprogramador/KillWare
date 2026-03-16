@@ -8,11 +8,12 @@ static FArchetype* InternalFindOrCreateArchetype(FBitset Mask);
 static FChunkStorage* InternalAllocChunk(FArchetype* Archetype);
 static void InternalBuildArchetypeLayout(FArchetype* Archetype);
 static void InternalBuildEdge(FArchetype* Src, FArchetype* Dst, FArchetypeEdge* Edge);
+static void InternalUpdateQueries(FArchetype* NewArchetype);
 
 static struct {
-  FArchetype* archetypes[ARC_MAX_CAPACITY];
-  UComponent* components[ARC_MAX_CAPACITY];
-  UQuery* queries[ARC_MAX_CAPACITY];
+  FArchetype* archetypes[ARC_MAX_ARCHETYPE_SIZE];
+  UComponent* components[ARC_MAX_COMPONENTS_TYPES];
+  FQuery* queries[ARC_MAX_QUERIES_TYPE];
   uint32 numArchetypes;
   uint32 numComponents;
   uint32 numQueries;
@@ -38,8 +39,9 @@ static void InternalUpdateArchetypeDebugName(FArchetype* Archetype) {
     buffer[used++] = '|';
     buffer[used++] = ' ';
   }
-  buffer[used] = '\0';
+  buffer[used - 3] = '\0';
   Archetype->name = NameMake(buffer);
+  GT_ALERT("Arc:%s", buffer);
 }
 
 void ArcAddEntity(AActor Actor) {
@@ -60,8 +62,15 @@ void ArcRemoveEntity(AActor Actor) {
   }
 }
 
+FQueryID ArcRegisterQuery(FQuery* NewQuery) {
+  GT_ASSERT(NewQuery && SArc.numQueries < ARC_MAX_QUERIES_TYPE);
+  uint32 index = SArc.numQueries++;
+  SArc.queries[index] = NewQuery;
+  return (FQueryID)index;
+}
+
 FComponentID ArcRegisterComponent(UComponent* NewComponent) {
-  GT_ASSERT(NewComponent && SArc.numComponents < ARC_MAX_CAPACITY);
+  GT_ASSERT(NewComponent && SArc.numComponents < ARC_MAX_COMPONENTS_TYPES);
   uint32 index = SArc.numComponents++;
   SArc.components[index] = NewComponent;
   return (FComponentID)index;
@@ -73,6 +82,11 @@ FArchetype* ArcGetEmptyArchetype() {
     emptyArc = (FArchetype*)PMemAlloc(sizeof(FArchetype));
   }
   return emptyArc;
+}
+
+FArchetype* ArcGetArchetypeByID(FArchetypeID ID) {
+  GT_ASSERT(ID < ARC_MAX_ARCHETYPE_SIZE);
+  return SArc.archetypes[ID];
 }
 
 FArchetype* ArcFindArchetype(FBitset Mask) {
@@ -164,7 +178,6 @@ void ArcMoveActorArchetype(AActor Actor, FArchetypeEdge* Edge) {
   entry->chunkIndex = dstIndex;
 }
 
-// Mover da Ultima Chunk  pra Atual
 static void InternalSwapBack(FArchetype* Archetype, FChunkStorage* CurrentChunk, uint32 RemoveIndex) {
   if(CurrentChunk->count == 0) {
     return;
@@ -200,13 +213,14 @@ static FArchetype* InternalFindOrCreateArchetype(FBitset Mask) {
     return archetype;
   }
   archetype = PMemAlloc(sizeof(FArchetype));
-  GT_ASSERT(SArc.numComponents < ARC_MAX_CAPACITY);
+  GT_ASSERT(SArc.numComponents < ARC_MAX_ARCHETYPE_SIZE);
   GT_ASSERT(archetype);
   archetype->componentMask = Mask;
-  InternalBuildArchetypeLayout(archetype);
-  InternalUpdateArchetypeDebugName(archetype);
   archetype->runtimeID = SArc.numArchetypes++;
   SArc.archetypes[archetype->runtimeID] = archetype;
+  InternalUpdateArchetypeDebugName(archetype);
+  InternalBuildArchetypeLayout(archetype);
+  InternalUpdateQueries(archetype);
   return archetype;
 }
 
@@ -273,5 +287,15 @@ static void InternalBuildEdge(FArchetype* Src, FArchetype* Dst, FArchetypeEdge* 
     Edge->srcColOffset[i] = Src->componentOffset[compID];
     Edge->dstColOffset[i] = Dst->componentOffset[compID];
     Edge->elementSize[i] = Src->componentStride[compID];
+  }
+}
+
+static void InternalUpdateQueries(FArchetype* NewArchetype) {
+  for(uint32 q = 0; q < SArc.numQueries; q++) {
+    FQuery* query = SArc.queries[q];
+    if(BitsetHasAll(&NewArchetype->componentMask, &query->queryMask)) {
+      BitsetSet(&query->archetypesMask, NewArchetype->runtimeID);  // TODO: trocar pra array dinamico de FArchetype**.
+      GT_ALERT("Find => Query -> %s, Archetype:%s", NameToStr(query->name), NameToStr(NewArchetype->name));
+    }
   }
 }

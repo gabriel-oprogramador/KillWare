@@ -19,7 +19,8 @@ REGISTER_COMPONENT(UTransform) {
 
 REGISTER_COMPONENT(URigidBody) {
   UPROPERTY(URigidBody, FVector3, velocity);
-  UPROPERTY(URigidBody, FVector3, acceleration);
+  UPROPERTY(URigidBody, FVector3, force);
+  UPROPERTY(URigidBody, float, invMass);
 }
 
 REGISTER_COMPONENT(USpriteRenderer) {
@@ -47,10 +48,11 @@ GT_EXTERN_C void Foo() {
 
   GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
   {
+    ActorAddComponent(aPlayer, URigidBody);
     UTransform* transform = ActorAddComponent(aPlayer, UTransform);
-    transform->location = (FVector3){11, 12, 13};
+    transform->location = (FVector3){1, 2, 3};
     transform->scale = (FVector3){1, 1, 1};
-    transform->rotation = (FQuat){0, 1, 0, 03};
+    transform->rotation = (FQuat){0, 1, 0, 1};
   }
   {
     GT_ALERT("Player Archetype: %s", NameToStr(entry->archetype->name));
@@ -90,7 +92,7 @@ GT_EXTERN_C void Foo() {
     GT_ALERT("Property => %s::%s, Offset:%llu", component->typeInfo.name, prop->name, prop->offset);
     prop = prop->next;
   }
-  TestActorsLifecycle();
+  //TestActorsLifecycle();
 }
 
 static void TestActorsLifecycle() {

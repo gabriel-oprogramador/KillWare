@@ -10,7 +10,8 @@ DECLARE_COMPONENT(UTransform) {
 
 DECLARE_COMPONENT(URigidBody) {
   FVector3 velocity;
-  FVector3 acceleration;
+  FVector3 force;
+  float invMass;
 };
 
 DECLARE_COMPONENT(USpriteRenderer) {

@@ -23,6 +23,9 @@ FName ActorGetArchetypeName(AActor Self) {
   return entry->archName;
 }
 
+void ActorAddComponentsByID(AActor Self, FBitset Mask) {
+}
+
 void* ActorGetComponentByID(AActor Self, uint16 ComponentID) {
   FActorEntry* entry = WorldGetActorEntryByActor(Self);
   if(entry && BitsetHas(&entry->archetype->componentMask, ComponentID)) {

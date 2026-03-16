@@ -134,7 +134,6 @@ static inline bool BitsetNextBitIndex(FBitset* self, uint32* outIndex) {
   uint64* words = (uint64*)self;
   for(uint32 i = 0; i < 4; i++) {
     uint64 bits = words[i];
-
     if(bits) {
       uint32 bit = GT_BIT_CTZ64(bits);
       *outIndex = i * 64 + bit;
