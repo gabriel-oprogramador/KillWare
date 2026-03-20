@@ -40,6 +40,7 @@ typedef struct FMatrix4 {
 } FMatrix4;
 
 // Others Type //============================================================================================//
+typedef struct TRegister TRegister;  // Engine/Containers/Register.h
 typedef uint64 FName;
 typedef uint64 AActor;  //Entity ID
 

@@ -3,7 +3,6 @@
 #include "Core/Log.h"
 #include "Core/Name.h"
 #include "Core/Bitset.h"
-#include "Arc/Arc.h"
 #include "GameFramework/Actor.h"
 
 #define GT_INITIAL_ACTOR_CAPACITY 1024
@@ -49,9 +48,7 @@ AActor WorldSpawnActor(cstring Name) {
   BitsetClear(&emptyMask);
   AActor actor = ActorMake(index, version);
   entry->actorName = NameMake(Name);
-  entry->archName = 0;
   entry->version = version;
-  ArcAddEntity(actor);
   return actor;
 }
 
@@ -61,10 +58,7 @@ void WorldDestroyActor(AActor Actor) {
     return;
   }
 
-  ArcRemoveEntity(Actor);
-
   entry->actorName = 0;
-  entry->archName = 0;
   entry->version = (++entry->version == 0) ? 1 : entry->version;
   entry->nextFree = SActorTable.firstFree;
   SActorTable.freeListCount++;

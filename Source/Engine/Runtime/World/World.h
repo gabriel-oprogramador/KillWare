@@ -10,7 +10,6 @@ typedef struct FActorEntry {
   FChunkStorage* chunk;
   FArchetype* archetype;
   FName actorName;
-  FName archName;
   uint32 chunkIndex;
   uint32 version;
   uint32 nextFree;
