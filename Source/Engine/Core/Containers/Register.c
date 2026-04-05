@@ -13,9 +13,10 @@ struct TRegister {
 TRegister* RegisterNew(uint64 InitialCapacity) {
   TRegister* reg = (TRegister*)PMemAlloc(sizeof(TRegister));
   GT_ASSERT(reg);
-  reg->capacity = InitialCapacity;
+  reg->capacity = (InitialCapacity > 0) ? InitialCapacity : INITIAL_LIST_CAPACITY;
   reg->count = 0;
-  reg->list = (void**)PMemAlloc(sizeof(void**));
+  reg->list = (void**)PMemAlloc(reg->capacity * sizeof(void*));
+  GT_ASSERT(reg->list);
   return reg;
 }
 
@@ -32,9 +33,9 @@ uint32 RegisterGetCount(TRegister* Self) {
 
 uint32 RegisterPush(TRegister* Self, void* Iten) {
   GT_ASSERT(Self && Iten);
-  if(Self->list == NULL || Self->count >= Self->capacity) {
-    uint32 newCap = (Self->count <= 0) ? INITIAL_LIST_CAPACITY : Self->capacity * 2;
-    void** newList = PMemRealloc(Self->list, newCap * sizeof(void**));
+  if(Self->count >= Self->capacity) {
+    uint32 newCap = (Self->capacity <= 0) ? INITIAL_LIST_CAPACITY : Self->capacity * 2;
+    void** newList = PMemRealloc(Self->list, newCap * sizeof(void*));
     GT_ASSERT(newList);
     Self->list = newList;
     Self->capacity = newCap;
