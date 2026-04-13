@@ -1,6 +1,6 @@
 #pragma once
+#include "Core/Types.h"
 #include "Core/Defines.h"
-#include "Core/EngineTypes.h"
 
 GT_EXTERN_C FGT GEngine;
 

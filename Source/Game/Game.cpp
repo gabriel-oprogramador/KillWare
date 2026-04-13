@@ -1,12 +1,20 @@
 // This file uses C++ only to test compatibility between C and C++.
+
 #include "CoreMinimal.h"
-#include "GameModule.h"
+#include "Runtime/GameModule/GameModule.h"
+#include "Platform/Platform.h"
+
+extern void TestsStart();
+extern void TestsUpdate();
+extern void TestsStop();
 
 void GameStart() {
   GT_INFO("Game Start");
+  //TestsStart();
 }
 
 void GameUpdate(float DeltaTime) {
+  TestsUpdate();
   if(InputIsKeyPressed(KEY_ESCAPE)) {
     GameQuit();
   }
@@ -34,5 +42,6 @@ void GameUpdate(float DeltaTime) {
 }
 
 void GameStop() {
+  TestsStop();
   GT_INFO("Game Stop");
 }

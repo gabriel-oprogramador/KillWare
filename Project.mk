@@ -7,6 +7,7 @@ PROJECT_PATH = $(CURDIR)
 
 INCLUDES = -ISource/Game -ISource/Engine -ISource/Engine/Runtime -ISource/Engine/ThirdParty 
 DEFINES = -DGAME_NAME=$(GAME_NAME) -DPROJECT_NAME=$(PROJECT_NAME) -DPROJECT_PATH=$(PROJECT_PATH)
+DEFINES += -D_CRT_SECURE_NO_WARNINGS
 
 # Project Folders
 BINARIES_DIR     = Binaries

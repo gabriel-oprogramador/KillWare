@@ -1,1 +1,5 @@
-IDI_ICON1 ICON "App.ico"
+#include <windows.h>
+
+#define IDI_APP_ICON 100
+
+IDI_APP_ICON ICON "App.ico"

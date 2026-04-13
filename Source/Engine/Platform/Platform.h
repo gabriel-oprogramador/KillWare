@@ -1,6 +1,6 @@
 #pragma once
-#include "Core/CoreTypes.h"
-#include "Core/Defines.h"
+#include "Platform/Types.h"
+#include "Platform/Defines.h"
 
 typedef enum EPlatformFileMode {
   PLATFORM_FILE_READ,    //
@@ -23,7 +23,7 @@ typedef struct PDir {
 
 typedef struct PDirEntry {
   char name[GT_MAX_FILENAME];
-  char path[GT_MAX_PATH];
+  char path[GT_MAX_FULLPATH];
   uint64 size;
   uint64 createdTime;
   uint64 lastWriteTime;
@@ -32,6 +32,7 @@ typedef struct PDirEntry {
 } PDirEntry;
 
 typedef struct PFile {
+  char path[GT_MAX_FULLPATH];
   void* handle;
   uint64 size;
   uint64 createdTime;
@@ -40,12 +41,10 @@ typedef struct PFile {
   EPlatformFileMode mode;
 } PFile;
 
-typedef struct PFileStream {
-} PFileStream;
-
 GT_EXTERN_C_BEGIN
 
 // Window Api //==============================================================================================//
+ENGINE_API void PWindowInit(uint32 Width, uint32 Height, cstring Title);
 ENGINE_API void PWindowClose();
 ENGINE_API bool PWindowIsMouseCaptured();
 ENGINE_API void PWindowSetMouseCaptured(bool bCapture);
@@ -60,29 +59,29 @@ ENGINE_API double PGetTime();
 ENGINE_API void PWait(double Seconds);
 
 // File System Api //=========================================================================================//
-ENGINE_API bool PDirExist(cstring Path);
-ENGINE_API bool PDirMake(cstring Path);
-ENGINE_API bool PDirDelete(cstring Path, bool bRecursive);
-ENGINE_API bool PDirCopy(cstring Dst, cstring Src, uint8 Depth, bool bOverride);
-ENGINE_API bool PDirOpen(cstring Path, PDir* OutDir);
-ENGINE_API void PDirClose(PDir* Dir);
-ENGINE_API bool PDirRead(PDir* Dir, PDirEntry* OutEntry);
-
 ENGINE_API cstring PGetUserDataPath();
-
-ENGINE_API bool PFileExist(cstring Path);
+ENGINE_API bool PFileExists(cstring Path);
 ENGINE_API bool PFileDelete(cstring Path);
-ENGINE_API bool PFileCopy(cstring Dst, cstring Src, bool bOverride);
+ENGINE_API bool PFileMove(cstring SrcPath, cstring DstPath);
+ENGINE_API bool PFileCopy(cstring SrcPath, cstring DstPath, bool bOverride);
 ENGINE_API bool PFileOpen(cstring Path, EPlatformFileMode Mode, PFile* OutFile);
-ENGINE_API void PFileClose(PFile* File);
-ENGINE_API bool PFileRead(PFile* File, uint64 Offset, uint64 ReadSize, uint8* OutFileBuffer);
+ENGINE_API void PFileClose(PFile* Self);
+ENGINE_API bool PFileRead(PFile* Self, uint64 Offset, uint64 ReadSize, uint8* OutBuffer, uint64* OutBytesRead);
+ENGINE_API bool PFileWrite(PFile* Self, uint64 Offset, uint64 WriteSize, uint8* InBuffer, uint64* OutBytesWritten);
+
+ENGINE_API bool PDirExists(cstring Path);
+ENGINE_API bool PDirCreate(cstring Path);
+ENGINE_API bool PDirDelete(cstring Path);
+ENGINE_API bool PDirOpen(cstring Path, PDir* OutDir);
+ENGINE_API void PDirClose(PDir* Self);
+ENGINE_API bool PDirRead(PDir* Self, PDirEntry* OutEntry);
 
 // Memory Api //==============================================================================================//
 ENGINE_API void PMemFree(void* Data);
 ENGINE_API void* PMemAlloc(uint64 Size);
 ENGINE_API void* PMemRealloc(void* Data, uint64 Size);
-ENGINE_API void* PMemCopy(void* Dst, void* Src, uint64 Size);
-ENGINE_API void* PMemMove(void* Dst, void* Src, uint64 Size);
+ENGINE_API void* PMemCopy(void* Src, void* Dst, uint64 Size);
+ENGINE_API void* PMemMove(void* Src, void* Dst, uint64 Size);
 ENGINE_API void* PMemSet(void* Dst, int32 Value, uint64 Size);
 
 GT_EXTERN_C_END

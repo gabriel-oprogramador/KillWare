@@ -1,5 +1,4 @@
 #pragma once
-#include "CoreMinimal.h"
 
 #if defined(PLATFORM_WEB) || defined(PLATFORM_ANDROID)
 #include <GLES3/gl3.h>
@@ -8,8 +7,6 @@
 #include "GL/glext.h"
 
 #define _GT_DECLARE_EXTERN_GL_FUNCTION(TType, TName) extern TType TName;
-
-#define _GT_DEBUG_GL_FUNCTION(TName) GT_ERROR("API:GL Not loaded function => " #TName);
 
 #define XMACRO_GL(T)                                                                                           \
   T(PFNGLCULLFACEPROC, glCullFace)                                                                             \

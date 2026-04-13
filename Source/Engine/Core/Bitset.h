@@ -1,6 +1,6 @@
 #pragma once
-#include "CoreTypes.h"
-#include "Core/Log.h"
+#include "Core/Types.h"
+#include "Platform/Log.h"
 
 #define GT_BITSET_MAX_INDEX 256
 

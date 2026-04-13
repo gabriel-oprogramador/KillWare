@@ -22,7 +22,7 @@ prebuild:
 build: $(OBJ)
 	echo 'Linking -> $(APP_BINARY)'
 	windres $(PLATFORM_DIR)/Resource.rc -O coff -o $(PLATFORM_DIR)/Resource.res
-	$(LD) $(PLATFORM_DIR)/Resource.res $(OBJ) $(FLAGS_LD) -o $(APP_BINARY)
+	$(LD) $(PLATFORM_DIR)/Resource.res $(OBJ) $(FLAGS) $(FLAGS_LD) -o $(APP_BINARY)
 
 posbuild:
 	$(COPY_CONTENT)

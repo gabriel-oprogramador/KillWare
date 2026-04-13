@@ -21,7 +21,7 @@ run: dev
 	$(MAKE) -f $(TARGET_MAKEFILE) run BUILD_TYPE=Development PLATFORM=$(PLATFORM)
 
 clean:
-	echo 'Clean Everyting'
+	echo 'Clean Everything'
 	rm -rf .cache
 	rm -rf $(BINARIES_DIR)
 	rm -rf $(INTERMEDIATE_DIR)

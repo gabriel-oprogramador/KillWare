@@ -1,5 +1,5 @@
 #pragma once
-#include "Core/EngineTypes.h"
+#include "Core/Types.h"
 #include "Core/Defines.h"
 
 typedef struct FViewport {

@@ -1,6 +1,6 @@
 #pragma once
+#include "Core/Types.h"
 #include "Core/Defines.h"
-#include "Core/EngineTypes.h"
 
 #define NAME(Str) (static FName name = 0, name ? name : (name = NameMake(Str)))
 

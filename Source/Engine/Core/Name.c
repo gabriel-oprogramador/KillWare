@@ -1,7 +1,6 @@
 #include "Name.h"
-#include "Core/Log.h"
+#include "Platform/Log.h"
 #include "Platform/Platform.h"
-#include <string.h>
 
 #define GT_MAX_NAME_ENTRIES 16384
 
@@ -28,7 +27,7 @@ static inline void InternalCopyToPool(cstring Name, uint32 Length) {
   }
   uint32 needed = Length + 1;
   char* addr = SNameTable.stringPool + SNameTable.used;
-  PMemCopy(addr, (void*)Name, needed);
+  PMemCopy((void*)Name, addr, needed);
   SNameTable.used += needed;
 }
 

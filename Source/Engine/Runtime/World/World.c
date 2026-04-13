@@ -1,8 +1,7 @@
 #include "World.h"
-#include "Platform/Platform.h"
-#include "Core/Log.h"
 #include "Core/Name.h"
-#include "Core/Bitset.h"
+#include "Platform/Log.h"
+#include "Platform/Platform.h"
 #include "GameFramework/Actor.h"
 
 #define GT_INITIAL_ACTOR_CAPACITY 1024
@@ -44,8 +43,6 @@ AActor WorldSpawnActor(cstring Name) {
     entry = &SActorTable.entries[index];
     version = 1;  // version 0 is reserved as invalid
   }
-  FBitset emptyMask;
-  BitsetClear(&emptyMask);
   AActor actor = ActorMake(index, version);
   entry->actorName = NameMake(Name);
   entry->version = version;

@@ -1,26 +1,23 @@
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
 #include <windowsx.h>
-#include "Core/Log.h"
 
-#include "Platform/PlatformEvents.h"
+#include "Platform/Events.h"
 #include "Platform/Platform.h"
-#include "Core/EngineTypes.h"
-#include "Core/Defines.h"
-#include "Core/Log.h"
+#include "Platform/Log.h"
 #include "GL/glcorearb.h"
 #include "GL/wglext.h"
 
 #define WINDOW_CLOSE_CODE WM_USER + 1
-#define IDI_APP_ICON      101
+#define IDI_APP_ICON      100
 #define MOUSE_LEFT_CODE   0b0000  // 0x0 D0
 #define MOUSE_MIDDLE_CODE 0b0001  // 0x1 D1
 #define MOUSE_RIGHT_CODE  0b0010  // 0x2 D2
 
-extern uint32 EngineInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRenderer, const char** Args);
-extern void EngineTerminate();
-extern void EngineUpdate();
 extern bool ApiWindowsLoadGLFunctions();
+extern uint32 PlatformInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRenderer, const char** Args);
+extern void PlatformTerminate();
+extern void PlatformUpdate();
 
 typedef struct {
   uint8 scanCode;
@@ -46,7 +43,7 @@ typedef struct {
 } PWindow;
 
 typedef struct {
-  char userDataPath[GT_MAX_PATH];
+  char userDataPath[GT_MAX_FULLPATH];
   PKey keyMap[KEY_MAX];
   PWindow* mainWindow;
   HKL keyboardLayout;
@@ -62,7 +59,6 @@ static void ApiWindowDestroy(PWindow* Self);
 static void ApiWindowUpdate(PWindow* Self);
 static void ApiWindowSetShow(PWindow* Self, bool bShow);
 static void ApiWindowSwapBuffers(PWindow* Self);
-static PWindow* InitWindow(uint32 Width, uint32 Height, cstring Title);
 static LRESULT InternalWinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 static bool InternalInitRawInput(PWindow* Window);
 static void InternalEventRawInput(PWindow* Window, HRAWINPUT RawInput);
@@ -85,23 +81,23 @@ GT_AUTO_EXEC(InitConsole) {
 
 // Entrypoint //=============================================================================================//
 int32 NativeMain(int argc, const char** argv) {
-  QueryPerformanceFrequency(&SPS.timerFrequency);
-  GetEnvironmentVariableA("LOCALAPPDATA", SPS.userDataPath, sizeof(SPS.userDataPath));
-  snprintf(SPS.userDataPath, sizeof(SPS.userDataPath), "%s\\%s", SPS.userDataPath, STR(GAME_NAME));
-
-  SPS.mainWindow = InitWindow(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT, STR(GAME_NAME));
-  if(SPS.mainWindow == NULL) {
-    return 1;
+  {
+    char tempBuff[GT_MAX_PATH] = "";
+    GetEnvironmentVariableA("LOCALAPPDATA", tempBuff, sizeof(SPS.userDataPath));
+    snprintf(SPS.userDataPath, sizeof(SPS.userDataPath), "%s\\%s", tempBuff, STR(GAME_NAME));
   }
-  ApiWindowSetShow(SPS.mainWindow, true);
-  EngineInitialize(TARGET_PLATFORM_WINDOWS, TARGET_RENDERER_GL_CORE_33, argv);
+
+  QueryPerformanceFrequency(&SPS.timerFrequency);
+  if(PlatformInitialize(TARGET_PLATFORM_WINDOWS, TARGET_RENDERER_GL_CORE_33, argv)) {
+    return 0;
+  }
 
   while(!SPS.mainWindow->bShouldClose) {
     ApiWindowUpdate(SPS.mainWindow);
-    EngineUpdate();
+    PlatformUpdate();
     ApiWindowSwapBuffers(SPS.mainWindow);
   }
-  EngineTerminate();
+  PlatformTerminate();
   ApiWindowDestroy(SPS.mainWindow);
   return 0;
 }
@@ -127,6 +123,134 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 #endif
 
 // Window Api //=============================================================================================//
+void PWindowInit(uint32 Width, uint32 Height, cstring Title) {
+  const uint32 glMajor = 3;
+  const uint32 glMinor = 3;
+  const BYTE colorBits = 32;
+  const BYTE depthBits = 24;
+  const BYTE stencilBits = 8;
+
+  PWindow* legacyWindow = ApiWindowCreate(0, 0, "LegacyWindow");
+  HDC legacyDC = legacyWindow->hDevice;
+
+  PIXELFORMATDESCRIPTOR pfd = {};
+  pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+  pfd.nVersion = 1;
+  pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+  pfd.iPixelType = PFD_TYPE_RGBA;
+  pfd.cColorBits = colorBits;
+  pfd.cDepthBits = depthBits;
+  pfd.cStencilBits = stencilBits;
+  pfd.iLayerType = PFD_MAIN_PLANE;
+
+  int32 pixeFormat = ChoosePixelFormat(legacyDC, &pfd);
+  if(!pixeFormat) {
+    GT_FATAL("API:WIN32 Not Choose Pixel Format");
+    ApiWindowDestroy(legacyWindow);
+    return;
+  }
+
+  if(!SetPixelFormat(legacyDC, pixeFormat, &pfd)) {
+    GT_FATAL("API:WIN32 Not Set Pixel Format");
+    ApiWindowDestroy(legacyWindow);
+    return;
+  }
+
+  HGLRC legacyContext = wglCreateContext(legacyDC);
+  if(legacyContext == NULL) {
+    GT_FATAL("API:WIN32 Not Create Context");
+    ApiWindowDestroy(legacyWindow);
+    return;
+  }
+
+  if(!wglMakeCurrent(legacyDC, legacyContext)) {
+    GT_FATAL("API:WIN32 Not make current context");
+    ApiWindowDestroy(legacyWindow);
+    return;
+  }
+
+  PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
+  PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
+  GT_ASSERT(wglChoosePixelFormatARB && wglCreateContextAttribsARB);
+
+  wglMakeCurrent(0, 0);
+  wglDeleteContext(legacyContext);
+  ApiWindowDestroy(legacyWindow);
+
+  {
+    int32 pixelFormatAttribs[] = {
+        WGL_DRAW_TO_WINDOW_ARB,
+        GL_TRUE,  //
+        WGL_SUPPORT_OPENGL_ARB,
+        GL_TRUE,  //
+        WGL_DOUBLE_BUFFER_ARB,
+        GL_TRUE,  //
+        WGL_COLOR_BITS_ARB,
+        colorBits,  //
+        WGL_STENCIL_BITS_ARB,
+        stencilBits,  //
+        WGL_DEPTH_BITS_ARB,
+        depthBits,  //
+        0           //
+    };
+
+    int32 glFlags = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+#ifdef DEVELOPMENT_MODE
+    glFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+#endif  // DEVELOPMENT_MODE
+
+    int32 contextAttribs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB,
+        glMajor,  //
+        WGL_CONTEXT_MINOR_VERSION_ARB,
+        glMinor,  //
+        WGL_CONTEXT_FLAGS_ARB,
+        glFlags,  //
+        0         //
+    };
+
+    PWindow* pWindow = ApiWindowCreate(Width, Height, Title);
+    if(pWindow == NULL) {
+      GT_FATAL("API:WIN32 Failed to create window");
+      return;
+    }
+    ApiWindowSetShow(pWindow, true);
+    int32 pixelFormat = 0;
+    uint32 numPixelFormat = 0;
+    wglChoosePixelFormatARB(pWindow->hDevice, pixelFormatAttribs, NULL, 1, &pixelFormat, (UINT*)&numPixelFormat);
+    if(numPixelFormat <= 0) {
+      GT_FATAL("API:WIN32 Not valid modern Pixel Format");
+      ApiWindowDestroy(pWindow);
+      return;
+    }
+
+    if(!SetPixelFormat(pWindow->hDevice, pixelFormat, &pfd)) {
+      GT_FATAL("API:WIN32 Not set modern Pixel Format");
+      ApiWindowDestroy(pWindow);
+      return;
+    }
+
+    pWindow->hContext = wglCreateContextAttribsARB(pWindow->hDevice, NULL, contextAttribs);
+    if(pWindow->hContext == NULL) {
+      GT_FATAL("API:WIN32 Not create modern context");
+      ApiWindowDestroy(pWindow);
+      return;
+    }
+
+    wglMakeCurrent(pWindow->hDevice, pWindow->hContext);
+    typedef BOOL(WINAPI * PFNWGLSWAPINTERVALEXTPROC)(int interval);
+    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+    if(wglSwapIntervalEXT) {
+      wglSwapIntervalEXT(1);
+    }
+    ApiWindowsLoadGLFunctions();
+
+    GT_INFO("API:WIN32 Window created: '%s' (%ux%u)", Title, Width, Height);
+    GT_INFO("API:WIN32 OpenGL context created: %u.%u Core Profile", glMajor, glMinor);
+    SPS.mainWindow = pWindow;
+  }
+}
+
 void PWindowClose() {
   SPS.mainWindow->bShouldClose = true;
 }
@@ -218,200 +342,26 @@ void PWait(double Seconds) {
 }
 
 // File System Api //=========================================================================================//
-bool PDirExist(cstring Path) {
-  GT_ASSERT(Path);
-  if(!Path) {
-    return false;
-  }
-  DWORD attr = GetFileAttributesA(Path);
-  if(attr == INVALID_FILE_ATTRIBUTES) {
-    return false;
-  }
-  return (attr & FILE_ATTRIBUTE_DIRECTORY) != 0;
-}
-
-bool PDirMake(cstring Path) {
-  GT_ASSERT(Path);
-  if(!Path) {
-    return false;
-  }
-  char tempBuff[GT_MAX_PATH];
-  snprintf(tempBuff, sizeof(tempBuff), "%s", Path);
-  char* ptr = tempBuff;
-  if(ptr[1] == ':') {
-    ptr += 2;
-  }
-  while(*ptr) {
-    if(*ptr == '\\' || *ptr == '/') {
-      *ptr = '\0';
-      if(!CreateDirectoryA(tempBuff, NULL)) {
-        if(GetLastError() != ERROR_ALREADY_EXISTS) {
-          return false;
-        }
-      }
-      *ptr = '\\';
-    }
-    ptr++;
-  }
-  if(!CreateDirectoryA(tempBuff, NULL)) {
-    if(GetLastError() != ERROR_ALREADY_EXISTS) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool PDirDelete(cstring Path, bool bRecursive) {
-  GT_ASSERT(Path);
-  if(!Path) {
-    return false;
-  }
-  DWORD attr = GetFileAttributesA(Path);
-  if(attr == INVALID_FILE_ATTRIBUTES) {
-    DWORD err = GetLastError();
-    if(err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) {
-      return true;
-    }
-    return false;
-  }
-  if(!(attr & FILE_ATTRIBUTE_DIRECTORY)) {
-    return false;
-  }
-  if(!bRecursive) {
-    SetFileAttributesA(Path, FILE_ATTRIBUTE_NORMAL);
-    return (RemoveDirectoryA(Path) != 0);
-  }
-
-  PDir dir;
-  if(!PDirOpen(Path, &dir)) {
-    return false;
-  }
-  PDirEntry entry;
-  while(PDirRead(&dir, &entry)) {
-    if(entry.bIsDirectory) {
-      if(!PDirDelete(entry.path, true)) {
-        PDirClose(&dir);
-        return false;
-      }
-    } else {
-      if(!PFileDelete(entry.path)) {
-        PDirClose(&dir);
-        return false;
-      }
-    }
-  }
-  PDirClose(&dir);
-  SetFileAttributesA(Path, FILE_ATTRIBUTE_NORMAL);
-  return (RemoveDirectoryA(Path) != 0);
-}
-
-bool PDirCopy(cstring Dst, cstring Src, uint8 Depth, bool bOverride) {
-  GT_ASSERT(Dst && Src);
-  if(!Dst || !Src) {
-    return false;
-  }
-  if(Depth > GT_MAX_DIR_DEPTH) {
-    GT_ALERT("Max recursion depth reached for directory copy");
-    return false;
-  }
-  if(!PDirExist(Dst)) {
-    PDirMake(Dst);
-  }
-  PDir srcDir;
-  if(!PDirOpen(Src, &srcDir)) {
-    return false;
-  }
-  char dstPath[GT_MAX_PATH];
-  PDirEntry entry;
-  while(PDirRead(&srcDir, &entry)) {
-    snprintf(dstPath, sizeof(dstPath), "%s\\%s", Dst, entry.name);
-    if(entry.bIsDirectory) {
-      if(Depth > 0 && Depth <= GT_MAX_DIR_DEPTH) {
-        PDirMake(dstPath);
-        PDirCopy(dstPath, entry.path, Depth - 1, bOverride);
-      }
-      continue;
-    }
-    PFileCopy(dstPath, entry.path, bOverride);
-  }
-  PDirClose(&srcDir);
-  return true;
-}
-
-bool PDirOpen(cstring Path, PDir* OutDir) {
-  GT_ASSERT(Path && OutDir);
-  if(!Path || !OutDir) {
-    return false;
-  }
-  PMemSet(OutDir, 0, sizeof(PDir));
-  char searchPath[GT_MAX_PATH];
-  snprintf(searchPath, sizeof(searchPath), "%s\\*", Path);
-  WIN32_FIND_DATAA findData;
-  HANDLE handle = FindFirstFileA(searchPath, &findData);
-  if(handle == INVALID_HANDLE_VALUE) {
-    return false;
-  }
-  OutDir->handle = handle;
-  OutDir->bIsOpen = true;
-  snprintf(OutDir->path, sizeof(OutDir->path), "%s", Path);
-  return true;
-}
-
-void PDirClose(PDir* Dir) {
-  GT_ASSERT(Dir);
-  if(Dir == NULL || Dir->bIsOpen == false) {
-    return;
-  }
-  FindClose(Dir->handle);
-  Dir->bIsOpen = false;
-}
-
-bool PDirRead(PDir* Dir, PDirEntry* OutEntry) {
-  GT_ASSERT(Dir && OutEntry);
-  if(Dir == NULL || OutEntry == NULL) {
-    return false;
-  }
-  HANDLE handle = Dir->handle;
-  WIN32_FIND_DATAA findData;
-  while(true) {
-    if(!FindNextFileA(handle, &findData)) {
-      return false;
-    }
-    if(strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0) {
-      continue;
-    }
-    break;
-  }
-  PMemSet(OutEntry, 0, sizeof(PDirEntry));
-  snprintf(OutEntry->name, sizeof(OutEntry->name), "%s", findData.cFileName);
-  snprintf(OutEntry->path, sizeof(OutEntry->path), "%s\\%s", Dir->path, findData.cFileName);
-  OutEntry->bIsDirectory = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-  OutEntry->size = ((uint64)findData.nFileSizeHigh << 32) | (uint64)findData.nFileSizeLow;
-  OutEntry->createdTime = ((uint64)findData.ftCreationTime.dwHighDateTime << 32) | (uint64)findData.ftCreationTime.dwLowDateTime;
-  OutEntry->lastWriteTime = ((uint64)findData.ftLastWriteTime.dwHighDateTime << 32) | (uint64)findData.ftLastWriteTime.dwLowDateTime;
-  OutEntry->lastAccessTime = ((uint64)findData.ftLastAccessTime.dwHighDateTime << 32) | (uint64)findData.ftLastAccessTime.dwLowDateTime;
-  return true;
-}
-
 cstring PGetUserDataPath() {
   return SPS.userDataPath;
 }
 
-bool PFileExist(cstring Path) {
+bool PFileExists(cstring Path) {
   GT_ASSERT(Path);
-  if(!Path) {
+  if(Path == NULL) {
     return false;
   }
   DWORD attr = GetFileAttributesA(Path);
   if(attr == INVALID_FILE_ATTRIBUTES) {
     return false;
   }
-  return (attr & FILE_ATTRIBUTE_DIRECTORY) == 0;
+  bool retVal = ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0);
+  return retVal;
 }
 
 bool PFileDelete(cstring Path) {
   GT_ASSERT(Path);
-  if(!Path) {
+  if(Path == NULL) {
     return false;
   }
   DWORD attr = GetFileAttributesA(Path);
@@ -426,11 +376,26 @@ bool PFileDelete(cstring Path) {
     return false;
   }
   SetFileAttributesA(Path, FILE_ATTRIBUTE_NORMAL);
-  return DeleteFileA(Path) != 0;
+  bool retVal = (DeleteFileA(Path) != 0);
+  return retVal;
 }
 
-bool PFileCopy(cstring Dst, cstring Src, bool bOverride) {
-  return (CopyFileA(Src, Dst, !bOverride) != 0);
+bool PFileMove(cstring SrcPath, cstring DstPath) {
+  GT_ASSERT(SrcPath && DstPath);
+  if(!SrcPath || !DstPath) {
+    return false;
+  }
+  bool retVal = (MoveFileExA(SrcPath, DstPath, MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING) != 0);
+  return retVal;
+}
+
+bool PFileCopy(cstring SrcPath, cstring DstPath, bool bOverride) {
+  GT_ASSERT(SrcPath && DstPath);
+  if(!SrcPath || !DstPath) {
+    return false;
+  }
+  bool retVal = (CopyFileA(SrcPath, DstPath, !bOverride) != 0);
+  return retVal;
 }
 
 bool PFileOpen(cstring Path, EPlatformFileMode Mode, PFile* OutFile) {
@@ -477,50 +442,194 @@ bool PFileOpen(cstring Path, EPlatformFileMode Mode, PFile* OutFile) {
   }
   OutFile->handle = (void*)hFile;
   OutFile->mode = Mode;
+  snprintf(OutFile->path, sizeof(OutFile->path), "%s", Path);
   return true;
 }
 
-void PFileClose(PFile* File) {
-  GT_ASSERT(File && File->handle);
-  if(!File || !File->handle) {
+void PFileClose(PFile* Self) {
+  GT_ASSERT(Self && Self->handle);
+  if(!Self || !Self->handle) {
     return;
   }
-  CloseHandle(File->handle);
-  File->handle = NULL;
+  CloseHandle(Self->handle);
+  Self->handle = NULL;
 }
 
-bool PFileRead(PFile* File, uint64 Offset, uint64 ReadSize, uint8* OutFileBuffer) {
-  static const uint32 MAX_READ_CHUNK = 0xFFFFFFFFu;
-  GT_ASSERT(File && File->handle && OutFileBuffer);
-  if(!File || !File->handle || !OutFileBuffer) {
+bool PFileRead(PFile* Self, uint64 Offset, uint64 ReadSize, uint8* OutBuffer, uint64* OutBytesRead) {
+  static const uint32 MAX_READ_CHUNK = 64 * 1024 * 1024;  // 64MB
+  GT_ASSERT(Self && Self->handle && OutBuffer);
+  if(!Self || !Self->handle || !OutBuffer) {
     return false;
   }
-  if(Offset >= File->size) {
+  if(Offset >= Self->size) {
     return false;
   }
-  uint8* dst = OutFileBuffer;
-  HANDLE handle = (HANDLE)File->handle;
+  uint8* buffer = OutBuffer;
+  HANDLE handle = (HANDLE)Self->handle;
   uint64 remaining = ReadSize;
-  if(Offset + ReadSize > File->size) {
-    remaining = File->size - Offset;
+  if(Offset + ReadSize > Self->size) {
+    remaining = Self->size - Offset;
   }
   LARGE_INTEGER li;
   li.QuadPart = Offset;
   if(!SetFilePointerEx(handle, li, NULL, FILE_BEGIN)) {
     return false;
   }
+  uint64 totalBytesRead = 0;
   while(remaining > 0) {
     DWORD chunk = (remaining > MAX_READ_CHUNK) ? MAX_READ_CHUNK : (DWORD)remaining;
     DWORD bytesRead = 0;
-    if(!ReadFile(handle, dst, chunk, &bytesRead, NULL)) {
+    if(!ReadFile(handle, buffer, chunk, &bytesRead, NULL)) {
       return false;
     }
     if(bytesRead == 0) {
       break;
     }
+    buffer += bytesRead;
     remaining -= bytesRead;
-    dst += bytesRead;
+    totalBytesRead += bytesRead;
   }
+  if(OutBytesRead) {
+    *OutBytesRead = totalBytesRead;
+  }
+  return true;
+}
+
+bool PFileWrite(PFile* Self, uint64 Offset, uint64 WriteSize, uint8* InBuffer, uint64* OutBytesWritten) {
+  static const uint32 MAX_WRITE_CHUNK = 64 * 1024 * 1024;  // 64MB
+  GT_ASSERT(Self && Self->handle && InBuffer);
+  if(!Self || !Self->handle || !InBuffer) {
+    return false;
+  }
+  if(Self->mode != PLATFORM_FILE_WRITE && Self->mode != PLATFORM_FILE_APPEND) {
+    return false;
+  }
+  const uint8* buffer = InBuffer;
+  HANDLE handle = (HANDLE)Self->handle;
+  uint64 remaining = WriteSize;
+  LARGE_INTEGER li;
+  li.QuadPart = Offset;
+  if(!SetFilePointerEx(handle, li, NULL, FILE_BEGIN)) {
+    return false;
+  }
+  uint64 totalWritten = 0;
+  while(remaining > 0) {
+    DWORD chunk = (remaining > MAX_WRITE_CHUNK) ? MAX_WRITE_CHUNK : (DWORD)remaining;
+    DWORD bytesWritten = 0;
+    if(!WriteFile(handle, buffer, chunk, &bytesWritten, NULL)) {
+      return false;
+    }
+    if(bytesWritten == 0) {
+      break;
+    }
+    buffer += bytesWritten;
+    remaining -= bytesWritten;
+    totalWritten += bytesWritten;
+  }
+  if(Offset + totalWritten > Self->size) {
+    Self->size = Offset + totalWritten;
+  }
+  if(OutBytesWritten) {
+    *OutBytesWritten = totalWritten;
+  }
+  return totalWritten > 0;
+}
+
+bool PDirExists(cstring Path) {
+  GT_ASSERT(Path);
+  if(!Path) {
+    return false;
+  }
+  DWORD attr = GetFileAttributesA(Path);
+  if(attr == INVALID_FILE_ATTRIBUTES) {
+    return false;
+  }
+  bool retVal = ((attr & FILE_ATTRIBUTE_DIRECTORY) != 0);
+  return retVal;
+}
+
+bool PDirCreate(cstring Path) {
+  if(!CreateDirectoryA(Path, NULL)) {
+    if(GetLastError() != ERROR_ALREADY_EXISTS) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool PDirDelete(cstring Path) {
+  GT_ASSERT(Path);
+  if(!Path) {
+    return false;
+  }
+  DWORD attr = GetFileAttributesA(Path);
+  if(attr == INVALID_FILE_ATTRIBUTES) {
+    DWORD err = GetLastError();
+    if(err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) {
+      return true;
+    }
+    return false;
+  }
+  if(!(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+    return false;
+  }
+  SetFileAttributesA(Path, FILE_ATTRIBUTE_NORMAL);
+  bool retVal = ((RemoveDirectoryA(Path) != 0));
+  return retVal;
+}
+
+bool PDirOpen(cstring Path, PDir* OutDir) {
+  GT_ASSERT(Path && OutDir);
+  if(!Path || !OutDir) {
+    return false;
+  }
+  PMemSet(OutDir, 0, sizeof(PDir));
+  char searchPath[GT_MAX_PATH];
+  snprintf(searchPath, sizeof(searchPath), "%s\\*", Path);
+  WIN32_FIND_DATAA findData;
+  HANDLE handle = FindFirstFileA(searchPath, &findData);
+  if(handle == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+  OutDir->handle = handle;
+  OutDir->bIsOpen = true;
+  snprintf(OutDir->path, sizeof(OutDir->path), "%s", Path);
+  return true;
+}
+
+void PDirClose(PDir* Self) {
+  GT_ASSERT(Self);
+  if(Self == NULL || Self->bIsOpen == false) {
+    return;
+  }
+  FindClose(Self->handle);
+  Self->bIsOpen = false;
+}
+
+bool PDirRead(PDir* Self, PDirEntry* OutEntry) {
+  GT_ASSERT(Self && OutEntry);
+  if(Self == NULL || OutEntry == NULL) {
+    return false;
+  }
+  HANDLE handle = Self->handle;
+  WIN32_FIND_DATAA findData;
+  while(true) {
+    if(!FindNextFileA(handle, &findData)) {
+      return false;
+    }
+    if(strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0) {
+      continue;
+    }
+    break;
+  }
+  PMemSet(OutEntry, 0, sizeof(PDirEntry));
+  snprintf(OutEntry->name, sizeof(OutEntry->name), "%s", findData.cFileName);
+  snprintf(OutEntry->path, sizeof(OutEntry->path), "%s\\%s", Self->path, findData.cFileName);
+  OutEntry->bIsDirectory = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+  OutEntry->size = ((uint64)findData.nFileSizeHigh << 32) | (uint64)findData.nFileSizeLow;
+  OutEntry->createdTime = ((uint64)findData.ftCreationTime.dwHighDateTime << 32) | (uint64)findData.ftCreationTime.dwLowDateTime;
+  OutEntry->lastWriteTime = ((uint64)findData.ftLastWriteTime.dwHighDateTime << 32) | (uint64)findData.ftLastWriteTime.dwLowDateTime;
+  OutEntry->lastAccessTime = ((uint64)findData.ftLastAccessTime.dwHighDateTime << 32) | (uint64)findData.ftLastAccessTime.dwLowDateTime;
   return true;
 }
 
@@ -540,12 +649,12 @@ void* PMemRealloc(void* Data, uint64 Size) {
   return realloc(Data, Size);
 }
 
-void* PMemCopy(void* Dst, void* Src, uint64 Size) {
+void* PMemCopy(void* Src, void* Dst, uint64 Size) {
   GT_ASSERT(Dst && Src && Size > 0);
   return memcpy(Dst, Src, Size);
 }
 
-void* PMemMove(void* Dst, void* Src, uint64 Size) {
+void* PMemMove(void* Src, void* Dst, uint64 Size) {
   GT_ASSERT(Dst && Src && Size > 0);
   return memmove(Dst, Src, Size);
 }
@@ -649,120 +758,6 @@ static void ApiWindowSwapBuffers(PWindow* Self) {
 }
 
 // Internal Functions //=====================================================================================//
-static PWindow* InitWindow(uint32 Width, uint32 Height, cstring Title) {
-  const uint32 glMajor = 3;
-  const uint32 glMinor = 3;
-  const BYTE colorBits = 32;
-  const BYTE depthBits = 24;
-  const BYTE stencilBits = 8;
-
-  PWindow* legacyWindow = ApiWindowCreate(0, 0, "LegacyWindow");
-  HDC legacyDC = legacyWindow->hDevice;
-
-  PIXELFORMATDESCRIPTOR pfd = {};
-  pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
-  pfd.nVersion = 1;
-  pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-  pfd.iPixelType = PFD_TYPE_RGBA;
-  pfd.cColorBits = colorBits;
-  pfd.cDepthBits = depthBits;
-  pfd.cStencilBits = stencilBits;
-  pfd.iLayerType = PFD_MAIN_PLANE;
-
-  int32 pixeFormat = ChoosePixelFormat(legacyDC, &pfd);
-  if(!pixeFormat) {
-    GT_FATAL("API:WIN32 Not Choose Pixel Format");
-    ApiWindowDestroy(legacyWindow);
-    return NULL;
-  }
-
-  if(!SetPixelFormat(legacyDC, pixeFormat, &pfd)) {
-    GT_FATAL("API:WIN32 Not Set Pixel Format");
-    ApiWindowDestroy(legacyWindow);
-    return NULL;
-  }
-
-  HGLRC legacyContext = wglCreateContext(legacyDC);
-  if(legacyContext == NULL) {
-    GT_FATAL("API:WIN32 Not Create Context");
-    ApiWindowDestroy(legacyWindow);
-    return NULL;
-  }
-
-  if(!wglMakeCurrent(legacyDC, legacyContext)) {
-    GT_FATAL("API:WIN32 Not make current context");
-    ApiWindowDestroy(legacyWindow);
-    return NULL;
-  }
-
-  PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
-  PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
-  GT_ASSERT(wglChoosePixelFormatARB && wglCreateContextAttribsARB);
-
-  wglMakeCurrent(0, 0);
-  wglDeleteContext(legacyContext);
-  ApiWindowDestroy(legacyWindow);
-
-  {
-    int32 pixelFormatAttribs[] = {
-        WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,    //
-        WGL_SUPPORT_OPENGL_ARB, GL_TRUE,    //
-        WGL_DOUBLE_BUFFER_ARB, GL_TRUE,     //
-        WGL_COLOR_BITS_ARB, colorBits,      //
-        WGL_STENCIL_BITS_ARB, stencilBits,  //
-        WGL_DEPTH_BITS_ARB, depthBits,      //
-        0                                   //
-    };
-
-    int32 glFlags = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
-#ifdef DEVELOPMENT_MODE
-    glFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif  // DEVELOPMENT_MODE
-
-    int32 contextAttribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, glMajor,  //
-        WGL_CONTEXT_MINOR_VERSION_ARB, glMinor,  //
-        WGL_CONTEXT_FLAGS_ARB, glFlags,          //
-        0                                        //
-    };
-
-    PWindow* pWindow = ApiWindowCreate(Width, Height, Title);
-    int32 pixelFormat = 0;
-    uint32 numPixelFormat = 0;
-    wglChoosePixelFormatARB(pWindow->hDevice, pixelFormatAttribs, NULL, 1, &pixelFormat, (UINT*)&numPixelFormat);
-    if(numPixelFormat <= 0) {
-      GT_FATAL("API:WIN32 Not valid modern Pixel Format");
-      ApiWindowDestroy(pWindow);
-      return NULL;
-    }
-
-    if(!SetPixelFormat(pWindow->hDevice, pixelFormat, &pfd)) {
-      GT_FATAL("API:WIN32 Not set modern Pixel Format");
-      ApiWindowDestroy(pWindow);
-      return NULL;
-    }
-
-    pWindow->hContext = wglCreateContextAttribsARB(pWindow->hDevice, NULL, contextAttribs);
-    if(pWindow->hContext == NULL) {
-      GT_FATAL("API:WIN32 Not create modern context");
-      ApiWindowDestroy(pWindow);
-      return NULL;
-    }
-
-    wglMakeCurrent(pWindow->hDevice, pWindow->hContext);
-    typedef BOOL(WINAPI * PFNWGLSWAPINTERVALEXTPROC)(int interval);
-    PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-    if(wglSwapIntervalEXT) {
-      wglSwapIntervalEXT(1);
-    }
-    ApiWindowsLoadGLFunctions();
-
-    GT_INFO("API:WIN32 Window created: '%s' (%ux%u)", Title, Width, Height);
-    GT_INFO("API:WIN32 OpenGL context created: %u.%u Core Profile", glMajor, glMinor);
-    return pWindow;
-  }
-}
-
 static LRESULT InternalWinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam) {
   PWindow* self = NULL;
   if(Msg == WM_NCCREATE) {
