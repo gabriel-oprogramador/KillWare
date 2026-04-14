@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Runtime/GameModule/GameModule.h"
-#include "Platform/Platform.h"
+#include "Renderer/Render.h"
 
 extern void TestsStart();
 extern void TestsUpdate();
@@ -39,6 +39,7 @@ void GameUpdate(float DeltaTime) {
   } else if(scroll < 0) {
     GT_ALERT("Scroll Y Backward:%f", scroll);
   }
+  RenderDrawPreview();
 }
 
 void GameStop() {

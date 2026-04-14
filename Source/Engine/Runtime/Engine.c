@@ -22,17 +22,6 @@ uint32 EngineInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRe
   GEngine.info.targetPlatform = TargetPlatform;
   GEngine.info.targetRenderer = TargetRenderer;
 
-#ifdef SHIPPING_MODE
-  cstring userPath = PGetUserDataPath();
-  char tempPath[GT_MAX_PATH];
-  snprintf(tempPath, sizeof(tempPath), "%s/Config", userPath);
-  PDirCopy(tempPath, "Config", GT_MAX_DIR_DEPTH, false);
-  snprintf(tempPath, sizeof(tempPath), "%s/Save", userPath);
-  if(!PDirExist(tempPath)) {
-    PDirMake(tempPath);
-  }
-#endif  //SHIPPING_MODE
-
   RenderInitialize();
   GT_INFO("Engine Initialized");
   GameStart();
@@ -65,6 +54,7 @@ void EngineUpdate() {
   /*GT_ALERT("FPS:%u, ms:%.4f", (uint32)smoothFPS, deltaTime);*/
 
   InternalProcessPlatformEvents((float)deltaTime);
+  RenderClear();
   GameUpdate((float)deltaTime);
   RenderUpdate((float)deltaTime);
 }
@@ -85,7 +75,10 @@ static void InternalProcessPlatformEvents(float DeltaTime) {
         FViewport viewport;
         viewport.posX = viewport.posY = 0;
         viewport.width = event.windowResize.width;
-        viewport.height = event.windowResize.width;
+        viewport.height = event.windowResize.height;
+        GEngine.windowInfo.width = event.windowResize.width;
+        GEngine.windowInfo.height = event.windowResize.height;
+        GEngine.windowInfo.aspect = (float)viewport.width / (float)viewport.height;
         RenderSetViewport(viewport);
         GT_ALERT("Window Resize: %u x %u", event.windowResize.width, event.windowResize.height);
         break;

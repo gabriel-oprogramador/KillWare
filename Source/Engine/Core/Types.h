@@ -60,4 +60,9 @@ typedef struct FGT {
     FInputState currentState;
     FInputState previousState;
   } input;
+  struct {
+    uint32 width;
+    uint32 height;
+    float aspect;
+  } windowInfo;
 } FGT;

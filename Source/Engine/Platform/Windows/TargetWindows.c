@@ -177,37 +177,31 @@ void PWindowInit(uint32 Width, uint32 Height, cstring Title) {
   wglDeleteContext(legacyContext);
   ApiWindowDestroy(legacyWindow);
 
+  // clang-format off
   {
     int32 pixelFormatAttribs[] = {
-        WGL_DRAW_TO_WINDOW_ARB,
-        GL_TRUE,  //
-        WGL_SUPPORT_OPENGL_ARB,
-        GL_TRUE,  //
-        WGL_DOUBLE_BUFFER_ARB,
-        GL_TRUE,  //
-        WGL_COLOR_BITS_ARB,
-        colorBits,  //
-        WGL_STENCIL_BITS_ARB,
-        stencilBits,  //
-        WGL_DEPTH_BITS_ARB,
-        depthBits,  //
-        0           //
+        WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+        WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+        WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+        WGL_COLOR_BITS_ARB, colorBits,
+        WGL_STENCIL_BITS_ARB, stencilBits,
+        WGL_DEPTH_BITS_ARB, depthBits,
+        0
     };
 
-    int32 glFlags = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+
+uint32 glFlags = WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
 #ifdef DEVELOPMENT_MODE
-    glFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
-#endif  // DEVELOPMENT_MODE
+  glFlags |= WGL_CONTEXT_DEBUG_BIT_ARB;
+#endif// DEVELOPMENT_MODE
 
     int32 contextAttribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB,
-        glMajor,  //
-        WGL_CONTEXT_MINOR_VERSION_ARB,
-        glMinor,  //
-        WGL_CONTEXT_FLAGS_ARB,
-        glFlags,  //
-        0         //
+        WGL_CONTEXT_MAJOR_VERSION_ARB, glMajor,
+        WGL_CONTEXT_MINOR_VERSION_ARB, glMinor,
+        WGL_CONTEXT_FLAGS_ARB, glFlags,
+        0
     };
+    // clang-format on
 
     PWindow* pWindow = ApiWindowCreate(Width, Height, Title);
     if(pWindow == NULL) {
@@ -280,6 +274,8 @@ void PWindowSetFullscreen(bool bFullscreen) {
   if(win->bFullscreen == bFullscreen) {
     return;
   }
+  bool bCapture = PWindowIsMouseCaptured();
+  PWindowSetMouseCaptured(false);
   win->bFullscreen = bFullscreen;
   if(bFullscreen) {
     GetWindowPlacement(win->hWindow, &win->placement);
@@ -298,6 +294,7 @@ void PWindowSetFullscreen(bool bFullscreen) {
     SetWindowLongPtrA(win->hWindow, GWL_STYLE, win->style);
     SetWindowPlacement(win->hWindow, &win->placement);
   }
+  PWindowSetMouseCaptured(bCapture);
 }
 
 void PWindowGetMousePos(int32* OutPosX, int32* OutPosY) {
@@ -705,6 +702,10 @@ static PWindow* ApiWindowCreate(uint32 Width, uint32 Height, cstring Title) {
   pWindow->style = GetWindowLongA(hWin, GWL_STYLE);
   GetWindowPlacement(hWin, &pWindow->placement);
 
+  PEvent pEvent = {PE_WINDOW_RESIZE};
+  pEvent.windowResize.width = Width;
+  pEvent.windowResize.height = Height;
+  PEventPush(pEvent);
   return pWindow;
 }
 
