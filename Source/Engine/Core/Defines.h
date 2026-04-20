@@ -33,25 +33,6 @@ static inline uint32_t GT_BIT_CTZ64(uint64_t x) {
 //#define NOINLINE
 //#endif
 
-#if defined(__cplusplus)
-#define GT_ALIGNAS(x) alignas(x)
-#define GT_ALIGNOF(x) alignof(x)
-#else
-#define GT_ALIGNAS(x) _Alignas(x)
-#define GT_ALIGNOF(x) _Alignof(x)
-#endif
-
-#if defined(_MSC_VER)
-#include <malloc.h>
-#define GT_ALIGNED_ALLOC(size, align) _aligned_malloc((size), (align))
-#define GT_ALIGNED_FREE(ptr)          _aligned_free(ptr)
-#else
-#define GT_ALIGNED_ALLOC(size, align) aligned_alloc((align), ALIGN_FORWARD((size), (align)))
-#define GT_ALIGNED_FREE(ptr)          free(ptr)
-#endif
-#define GT_ALIGN_FORWARD(x, a)     (((x) + ((a) - 1)) & ~((a) - 1))
-#define GT_ALIGN_FORWARD_PTR(p, a) (void*)((((uintptr_t)(p)) + ((a) - 1)) & ~((uintptr_t)((a) - 1)))
-
 #define MAP_1(F, X)       F(X)
 #define MAP_2(F, X, ...)  F(X) MAP_1(F, __VA_ARGS__)
 #define MAP_3(F, X, ...)  F(X) MAP_2(F, __VA_ARGS__)

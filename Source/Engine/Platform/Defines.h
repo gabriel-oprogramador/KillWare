@@ -56,3 +56,24 @@ typedef void(__cdecl* FOnAutoExec)();
 #else
 #error "Compiler not supported"
 #endif
+
+#define GT_ALIGN_FORWARD(x, a)     (((x) + ((a) - 1)) & ~((a) - 1))
+#define GT_ALIGN_FORWARD_PTR(p, a) (void*)((((uintptr_t)(p)) + ((a) - 1)) & ~((uintptr_t)((a) - 1)))
+
+#if defined(__cplusplus)
+#define GT_ALIGNAS(x) alignas(x)
+#define GT_ALIGNOF(x) alignof(x)
+#else
+#define GT_ALIGNAS(x) _Alignas(x)
+#define GT_ALIGNOF(x) _Alignof(x)
+#endif
+
+#if defined(_WIN32)
+#include <malloc.h>
+#define GT_ALIGNED_ALLOC(size, align) _aligned_malloc((size), (align))
+#define GT_ALIGNED_FREE(ptr)          _aligned_free(ptr)
+#else
+#include <stdlib.h>
+#define GT_ALIGNED_ALLOC(size, align) aligned_alloc((align), (size))
+#define GT_ALIGNED_FREE(ptr)          free(ptr)
+#endif

@@ -85,8 +85,12 @@ static void InternalProcessPlatformEvents(float DeltaTime) {
       }
       case PE_INPUT_KEY_MAP: {
         // Aqui você poderia atualizar o layout do teclado, se necessário
-        // uint8 count = 0;
-        // PKey* keyMap = PWindowGetKeyMap(&count);
+        /*uint8 count = 0;*/
+        /*PKey* key = PInputRawGetKeyMap(&count);*/
+        /*for(uint32 c = 0; c < event.keymap.count; c++) {  // C = KEY_**/
+        /*GT_ALERT("Physic:%s, Layout:%s", event.keymap.map[c].physicalName, event.keymap.map[c].layoutName);*/
+        /*}*/
+        GT_ALERT("Update Key Mapping");
         break;
       }
       case PE_INPUT_KEY: {

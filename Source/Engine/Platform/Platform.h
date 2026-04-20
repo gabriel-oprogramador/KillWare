@@ -8,7 +8,7 @@ typedef enum EPlatformFileMode {
   PLATFORM_FILE_APPEND,  //
 } EPlatformFileMode;
 
-typedef struct {
+typedef struct PKey {
   EKeyCode keyCode;
   cstring physicalName;
   cstring layoutName;
@@ -46,13 +46,14 @@ GT_EXTERN_C_BEGIN
 // Window Api //==============================================================================================//
 ENGINE_API void PWindowInit(uint32 Width, uint32 Height, cstring Title);
 ENGINE_API void PWindowClose();
+ENGINE_API bool PWindowIsVsync();
+ENGINE_API void PWindowSetVsync(bool bEnable);
 ENGINE_API bool PWindowIsMouseCaptured();
 ENGINE_API void PWindowSetMouseCaptured(bool bCapture);
 ENGINE_API bool PWindowIsFullscreen();
 ENGINE_API void PWindowSetFullscreen(bool bFullscreen);
 ENGINE_API void PWindowGetMousePos(int32* OutPosX, int32* OutPosY);
 ENGINE_API void PWindowSetMousePos(int32 PosX, int PosY);
-ENGINE_API PKey* PWindowGetKeyMap(uint8* OutCount);
 
 // Time Api //================================================================================================//
 ENGINE_API double PGetTime();
@@ -83,5 +84,7 @@ ENGINE_API void* PMemRealloc(void* Data, uint64 Size);
 ENGINE_API void* PMemCopy(void* Src, void* Dst, uint64 Size);
 ENGINE_API void* PMemMove(void* Src, void* Dst, uint64 Size);
 ENGINE_API void* PMemSet(void* Dst, int32 Value, uint64 Size);
+ENGINE_API void* PMemAllocAligned(uint64 Size, uint64 Alignment);
+ENGINE_API void PMemFreeAligned(void* Data);
 
 GT_EXTERN_C_END

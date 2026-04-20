@@ -5,6 +5,7 @@ extern void EngineTerminate();
 extern void EngineUpdate();
 
 uint32 PlatformInitialize(ETargetPlatform TargetPlatform, ETargetRenderer TargetRenderer, const char** Args) {
+  PWindowSetVsync(true);
   PWindowInit(INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT, STR(GAME_NAME));
   return EngineInitialize(TargetPlatform, TargetRenderer, NULL);
 }

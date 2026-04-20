@@ -4,6 +4,8 @@
 
 #define MAX_PLATFORM_EVENTS 1024
 
+typedef struct PKey PKey;
+
 typedef enum {
   PE_EVENT_UNKNOW,        //
   PE_WINDOW_FOCUS,        //
@@ -29,6 +31,10 @@ typedef struct {
       EKeyCode keyCode;
       bool bState;
     } inputKey;
+    struct {
+      PKey* map;
+      uint8 count;
+    } keymap;
     struct {
       int32 posX;
       int32 posY;
