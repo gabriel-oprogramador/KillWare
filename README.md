@@ -1,53 +1,103 @@
 # KillWare
 
-## Em desenvolvimento...
+## 🚧 In Development
+
 ![Windows](https://img.shields.io/badge/Windows-green)
-![Linux](https://img.shields.io/badge/Linux-lightgrey)
+![Linux](https://img.shields.io/badge/Linux-green)
 ![Web](https://img.shields.io/badge/Web-lightgrey)
 
-## 🌎 Links Oficiais
+---
+
+## 🌎 Official Links
+
 [![YouTube](https://img.shields.io/badge/YouTube-Channel-yellow?logo=youtube)](https://www.youtube.com/@gabriel-oprogramador)
-[![Itch.io](https://img.shields.io/badge/Itch.io-Page-yellow?logo=itch.io&logoColor=white)](https://gabriel-oprogramador.itch.io/)
+[![Itch.io](https://img.shields.io/badge/Itch.io-Page-yellow?logo=itch.io\&logoColor=white)](https://gabriel-oprogramador.itch.io/)
 
-## Enredo
-**KillWare** é um **FPS Runner** ambientado na **Intra-Net**, uma rede virtual onde consciências se conectam.  
-Você é um caçador de **Wares** - Corra, atire, desvie e limpe servidores infectados antes de ser expulso da rede.  
+---
 
-## Projeto
-O jogo é desenvolvido em **C puro**, utilizando uma base própria focada em:
+## Overview
 
-- **ECS-True**
-- **Data-Oriented Design (DoD)**
-- **Estrutura orientada a dados (cache-friendly)**
-- **Controle total do pipeline gráfico**
+**KillWare** is a **fast-paced FPS runner** set inside the **Intra-Net**, a virtual network where consciousnesses connect.
 
-Sem engines ou bibliotecas externas (SDL, SFML, GLFW, GLU ou GLM).  
-Renderização feita diretamente com **OpenGL**, escrita do zero.  
-Assets carregados via `stb_*`.
+You play as a hunter of **Wares** — run, shoot, dodge, and clean infected servers before being expelled from the network.
 
-## Objetivo
-Este projeto serve como:
-- Base para estudo de arquitetura ECS real
-- Desenvolvimento de jogos 2D/3D low-level
-- Exploração de performance e controle de memória
+---
 
-## Windows Build
-### Ferramentas Unix-like
-Para compilar seu projeto no Windows com ferramentas similares ao Unix, você pode usar o **[W64devkit](https://github.com/skeeto/w64devkit)**.
-- Baixe e instale o W64devkit.
-- Certifique-se de adicionar o path das ferramentas ao seu ambiente (`PATH`).
-- O GCC já vem incluído, pronto para uso.
+## Project
 
-### Usando Clang ao invés do GCC
-Caso prefira usar **Clang**, você tem duas opções principais:
-#### 1. Clang com MINGW
-- Pré-configurado para Windows, inclui tudo pronto para compilar.
-- Baixar: [llvm-mingw-20251216-msvcrt-x86_64.zip](https://github.com/mstorsjo/llvm-mingw/releases/tag/20251216)
-- Versão utilizada: **LLVM 21.1.8**
-#### 2. Clang com MSVC
-- Requer **Visual Studio** com suporte a C++ instalado.
-- Baixar: [LLVM-21.1.8-win64.exe](https://github.com/llvm/llvm-project/releases/tag/llvmorg-21.1.8)
+The game is developed in **pure C**, using a custom low-level foundation focused on:
 
-### Resumo das diferenças
-- **MSVC:** precisa do Visual Studio, integra com compilador da Microsoft.
-- **MINGW / W64devkit:** já vem com GCC/Clang e ferramentas prontas, sem necessidade de Visual Studio.
+* **ECS (true implementation)**
+* **Data-Oriented Design (DoD)**
+* **Cache-friendly architecture**
+* **Full control over the graphics pipeline**
+
+No external frameworks (SDL, SFML, GLFW, etc.).
+Rendering is done directly with **OpenGL**, built from scratch.
+Only minimal header-only libraries (e.g. `stb_*`, 'cgltf') are used.
+
+---
+
+## Goals
+
+This project serves as:
+
+* A study base for real ECS architecture
+* Low-level 2D/3D game development
+* Exploration of performance and memory control
+
+---
+
+## Setup
+
+* [Windows](Docs/Setup/Windows.md)
+* [Linux](Docs/Setup/Linux.md)
+
+---
+
+## Build Commands
+
+### Build (Host Platform)
+
+Builds the project using the default configuration.
+
+```bash
+make
+```
+
+### Build and Run
+
+Builds and runs the project.
+
+```bash
+make run
+```
+
+### Clean
+
+Removes all generated files.
+
+```bash
+make clean
+```
+
+### Shipping Build
+
+Builds in **Shipping mode** (optimized, no debug features).
+Also copies `Config` and `Content` into the output directory, creating a minimal distributable package.
+
+```bash
+make ship
+```
+
+---
+
+## Notes
+
+Future platform support (e.g. Web):
+
+```bash
+make PLATFORM=Web
+make run PLATFORM=Web
+make ship PLATFORM=Web
+```

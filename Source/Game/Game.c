@@ -1,5 +1,3 @@
-// This file uses C++ only to test compatibility between C and C++.
-
 #include "CoreMinimal.h"
 #include "Runtime/GameModule/GameModule.h"
 #include "Renderer/Render.h"
@@ -31,6 +29,10 @@ void GameUpdate(float DeltaTime) {
   if(InputIsKeyPressed(KEY_MOUSE_LEFT)) {
     FVector2 pos = InputGetMousePos();
     GT_ALERT("Mouse Pos:(X:%.2f, Y:%.f)", pos.x, pos.y);
+  }
+  if(InputIsKeyRepeat(KEY_MOUSE_RIGHT)) {
+    FVector2 delta = InputGetMouseDelta();
+    GT_ALERT("Mouse Delta:(X:%.2f, Y:%.f)", delta.x, delta.y);
   }
 
   float scroll = InputGetMouseScroll().y;

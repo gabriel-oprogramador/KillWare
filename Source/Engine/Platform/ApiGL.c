@@ -5,9 +5,23 @@
 #define _GT_DECLARE_GL_FUNCTION(TType, TName) TType TName = NULL;
 #define _GT_DEBUG_GL_FUNCTION(TName)          GT_ERROR("API:GL Not loaded function => " #TName);
 
+XMACRO_GL(_GT_DECLARE_GL_FUNCTION)
+
+#ifdef PLATFORM_LINUX
+#define GT_LOAD_GL_FUNCTION(TType, TName)                   \
+  TName = (TType)glXGetProcAddress((const GLubyte*)#TName); \
+  if(TName == NULL) {                                       \
+    _GT_DEBUG_GL_FUNCTION(TName)                            \
+  }
+extern void* glXGetProcAddress(const unsigned char* name);
+bool ApiGLLinuxLoadFunctions() {
+  XMACRO_GL(GT_LOAD_GL_FUNCTION);
+  return true;
+}
+#endif  // PLATFORM_LINUX
+
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
-XMACRO_GL(_GT_DECLARE_GL_FUNCTION)
 #define GT_LOAD_GL_FUNCTION(TType, TName)       \
   TName = (TType)GetProcAddress(libGL, #TName); \
   if(TName == NULL) {                           \

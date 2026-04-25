@@ -43,6 +43,9 @@ typedef struct PFile {
 
 GT_EXTERN_C_BEGIN
 
+ENGINE_API cstring PGetUserDataPath();
+ENGINE_API bool PGetRandomBytes(void* OutBuffer, uint64 Size);
+
 // Window Api //==============================================================================================//
 ENGINE_API void PWindowInit(uint32 Width, uint32 Height, cstring Title);
 ENGINE_API void PWindowClose();
@@ -60,7 +63,6 @@ ENGINE_API double PGetTime();
 ENGINE_API void PWait(double Seconds);
 
 // File System Api //=========================================================================================//
-ENGINE_API cstring PGetUserDataPath();
 ENGINE_API bool PFileExists(cstring Path);
 ENGINE_API bool PFileDelete(cstring Path);
 ENGINE_API bool PFileMove(cstring SrcPath, cstring DstPath);
