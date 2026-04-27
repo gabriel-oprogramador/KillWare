@@ -25,6 +25,9 @@
 #define GT_LOG_BUFFER     2048
 #define GT_BUFFER_16K     (16 * 1024)
 
+#define GT_PRINTF_BUFFERS 8
+#define GT_PRINTF_SIZE    128
+
 // TODO: Remover para Math
 #define GT_M_PI          3.14159265358979323846
 #define GT_EPSILON_VALUE 1e-6f
@@ -39,6 +42,14 @@
 #define GT_EXTERN_C_END
 #define GT_EXTERN_C       extern
 #define GT_CLITERAL(type) (type)
+#endif
+
+#if defined(__cplusplus)
+#define GT_THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define GT_THREAD_LOCAL _Thread_local
+#else
+#error "Thread local not supported on this compiler"
 #endif
 
 // Use only in .c or .cpp files.

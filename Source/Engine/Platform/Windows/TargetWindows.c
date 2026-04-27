@@ -1,6 +1,8 @@
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
 #include <windowsx.h>
+#include <ntstatus.h>
+#include <bcrypt.h>
 
 #include "Platform/Platform.h"
 #include "Platform/Log.h"
@@ -109,6 +111,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 cstring PGetUserDataPath() {
   return SPS.userDataPath;
+}
+
+bool PGetRandomBytes(void* OutBuffer, uint64 Size) {
+  if(!OutBuffer || Size == 0) {
+    return false;
+  }
+  if(Size > ULONG_MAX) {
+    return false;
+  }
+  // BCRYPT_RNG_ALG_HANDLE
+  NTSTATUS status = BCryptGenRandom(NULL, (PUCHAR)OutBuffer, (ULONG)Size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+  return (status >= 0);
 }
 
 // Window Api //=============================================================================================//
@@ -301,7 +315,7 @@ void PWindowSetFullscreen(bool bFullscreen) {
 
 void PWindowGetMousePos(int32* OutPosX, int32* OutPosY) {
   PWindow* win = SPS.mainWindow;
-  POINT point = {};
+  POINT point;
   GetCursorPos(&point);
   ScreenToClient(win->hWindow, &point);
   if(OutPosX) {
@@ -322,7 +336,7 @@ void PWindowSetMousePos(int32 PosX, int PosY) {
 // Internal Functions //=====================================================================================//
 static void InternalUpdateWindow(PWindow* Self) {
   GT_ASSERT(Self);
-  MSG msg = {};
+  MSG msg;
   while(PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
     if(msg.message == WINDOW_CLOSE_CODE) {
       Self->bShouldClose = true;
@@ -406,7 +420,8 @@ static PWindow* InternalCreateWindow(uint32 Width, uint32 Height, cstring Title)
   cstring className = "GameWindow";
   HINSTANCE hInstance = GetModuleHandleA(NULL);
   uint32 style = WS_OVERLAPPEDWINDOW;
-  WNDCLASSEXA wc = {};
+  WNDCLASSEXA wc;
+  PMemSet(&wc, 0, sizeof(WNDCLASSEXA));
   if(!GetClassInfoExA(hInstance, className, &wc)) {
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.style = CS_OWNDC;

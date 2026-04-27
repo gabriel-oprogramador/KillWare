@@ -4,7 +4,7 @@ include Project.mk
 FLAGS += -DPLATFORM_WINDOWS
 FLAGS_CC = -std=c11
 FLAGS_CX = -std=c++17
-FLAGS_LD = -luser32 -lgdi32 -lopengl32
+	FLAGS_LD = -luser32 -lgdi32 -lopengl32 -lbcrypt
 
 ifeq ($(BUILD_TYPE), Shipping)
 FLAGS_LD += -mwindows

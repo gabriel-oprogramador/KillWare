@@ -8,7 +8,7 @@ extern void TestsStop();
 
 void GameStart() {
   GT_INFO("Game Start");
-  //TestsStart();
+  /*TestsStart();*/
 }
 
 void GameUpdate(float DeltaTime) {

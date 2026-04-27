@@ -4,6 +4,7 @@
 
 // Arquivo de Testes codigos nunca iram pra Engine
 
+static void GuidTests();
 static void FileSystemTests();
 static void LoadTexture(cstring Path);
 static void StreamUpdate();
@@ -40,10 +41,20 @@ static struct {
   uint32 count;
 } SStreamQueue;
 
+typedef struct FGuid {
+  union {
+    uint8 bytes[16];
+    struct {
+      uint64 lo;
+      uint64 hi;
+    };
+  };
+} FGuid;
+
 void TestsStart() {
   FileSystemTests();
   LoadTexture("Content/Logo.png");
-  //LoadTexture("Content/Logo8K.png");
+  GuidTests();
 }
 
 void TestsUpdate() {
@@ -51,6 +62,58 @@ void TestsUpdate() {
 }
 
 void TestsStop() {
+}
+
+FGuid GuidGenerate() {
+  FGuid guid;
+  PMemSet(guid.bytes, 0, sizeof(guid.bytes));
+  if(!PGetRandomBytes(guid.bytes, 16)) {
+    return guid;
+  }
+  // UUID v4 (RFC 4122)
+  guid.bytes[6] = (guid.bytes[6] & 0x0F) | 0x40;
+  guid.bytes[8] = (guid.bytes[8] & 0x3F) | 0x80;
+  return guid;
+}
+
+void GuidToString(const FGuid* g, char* out) {
+  static const char* HEX = "0123456789abcdef";
+  int32 p = 0;
+  for(int32 i = 0; i < 16; i++) {
+    if(i == 4 || i == 6 || i == 8 || i == 10) {
+      out[p++] = '-';
+    }
+    uint8 b = g->bytes[i];
+    out[p++] = HEX[b >> 4];
+    out[p++] = HEX[b & 0x0F];
+  }
+  out[p] = '\0';
+}
+
+cstring GuidPrintf(FGuid* Self) {
+  GT_THREAD_LOCAL static char buffers[GT_PRINTF_BUFFERS][GT_PRINTF_SIZE];
+  GT_THREAD_LOCAL static uint32_t index = 0;
+  index = (index + 1) % GT_PRINTF_BUFFERS;
+  GuidToString(Self, buffers[index]);
+  return buffers[index];
+}
+
+bool GuidEqual(FGuid* Self, FGuid* Other) {
+  return (Self->lo == Other->lo && Self->hi == Other->hi);
+}
+
+static void GuidTests() {
+  FGuid player = GuidGenerate();
+  FGuid enemy = GuidGenerate();
+  FGuid pawn = player;
+  GT_ALERT("Player GUID, %s", GuidPrintf(&player));
+  GT_ALERT("Enemy  GUID, %s", GuidPrintf(&enemy));
+  if(!GuidEqual(&player, &enemy)) {
+    GT_ALERT("Player GUID not equal Enemy GUID");
+  }
+  if(GuidEqual(&player, &pawn)) {
+    GT_ALERT("Player GUID equal Pawn GUID");
+  }
 }
 
 // Platform File System
