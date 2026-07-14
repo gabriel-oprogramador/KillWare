@@ -56,17 +56,19 @@ void RenderDrawPreview() {
   static GLuint uColor = 0, uScale = 0;
   static FShader Shader = 0;
 
-  static cstring vertSrc = "#version 330 core\n"
+  static cstring vertSrc = "#version 300 es\n"
+                           "precision mediump float;"
                            "layout (location = 0) in vec3 aVertPos;"
                            "layout (location = 1) in vec2 aTexCoord;"
                            "uniform vec2 uScale;"
                            "out vec2 vTexCoord;"
                            "void main(){"
-                           "  vec3 pos = vec3(aVertPos.xy * uScale, aVertPos.z);"
-                           "  gl_Position = vec4(pos, 1.0);"
+                           "vec3 pos = vec3(aVertPos.xy * uScale, aVertPos.z);"
+                           "gl_Position = vec4(pos, 1.0);"
                            "  vTexCoord = aTexCoord;"
                            "}";
-  static cstring fragSrc = "#version 330 core\n"
+  static cstring fragSrc = "#version 300 es\n"
+                           "precision mediump float;"
                            "in vec2 vTexCoord;"
                            "uniform sampler2D uMainTex;"
                            "uniform vec4 uColor;"
@@ -85,7 +87,7 @@ void RenderDrawPreview() {
       -0.5f, -0.5f, 0.f,  0.f, 0.f,
       -0.5f,  0.5f, 0.f,  0.f, 1.f
     };
-    int32 indices[] = {0, 1, 2, 2, 3, 0};
+    uint32 indices[] = {0, 1, 2, 2, 3, 0};
     // clang-format on
 
     glGenVertexArrays(1, &VAO);
